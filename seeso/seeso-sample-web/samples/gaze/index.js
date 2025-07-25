@@ -416,6 +416,21 @@ async function main() {
 }
 
 (async () => {
+
+  try {
+    const res = await fetch("http://localhost:3000/video-data");
+    const data = await res.json();
+    const video = document.getElementById("myVideo");
+    const source = document.createElement("source");
+    source.src = data.drive_url;
+    source.type = "video/mp4";
+    video.appendChild(source);
+    const overlay = document.getElementById("overlayText");
+    overlay.textContent = data.overlay_text;
+  } catch (e) {
+    console.error("❌ DB에서 영상/텍스트 로딩 실패", e);
+  }
+
   await main();
 
   const video = document.getElementById("myVideo");
