@@ -1,9 +1,9 @@
 {
   "name": "seeso-web-sample",
   "version": "0.0.1",
-  "description": "",
-  "keywords": "",
-  "license": "",
+  "description": "<p align=\"center\">\r     <img src=\"/image/seeso_logo.png\">\r </p>\r <div align=\"center\">\r     <h1>SeeSo Web Sample</h1>\r     <img src=\"https://img.shields.io/badge/version-2.5.0-blue\" />\r </div>",
+  "keywords": [],
+  "license": "ISC",
   "author": "",
   "scripts": {
     "serve": "cross-env NODE_ENV=development node devServer.js samples/gaze/index.html 8082",
@@ -21,11 +21,15 @@
     "vite": "^7.0.6"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "cross-env": "^7.0.3",
-    "express": "^4.17.1",
+    "express": "^4.21.2",
+    "mongodb": "^6.18.0",
     "open": "^8.2.1",
     "regenerator-runtime": "^0.14.1",
     "seeso": "^0.2.4",
     "wasm-check": "^2.0.1"
-  }
+  },
+  "main": "devServer.js",
+  "type": "commonjs"
 }
