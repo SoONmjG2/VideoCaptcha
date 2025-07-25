@@ -1,5 +1,9 @@
 {
   "dependencies": {
     "seeso": "^0.2.4"
-  }
+  },
+  "scripts": {
+  "gaze": "vite --open samples/gaze/index.html"
 }
+}
+

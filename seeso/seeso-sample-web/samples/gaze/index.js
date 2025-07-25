@@ -2,7 +2,7 @@ import 'regenerator-runtime/runtime';
 import EasySeeSo from 'seeso/easy-seeso';
 import { showGaze, hideGaze } from "../showGaze";
 
-const licenseKey = 'dev_nny32m3q29qbij8jd2qi8clzljothxzbh6525ayz';
+const licenseKey = 'dev_f1hvrhiqcw78h4va2xt7ajuhtdriiqan3gjbcxy3';
 const dotMaxSize = 10;
 const dotMinSize = 5;
 
