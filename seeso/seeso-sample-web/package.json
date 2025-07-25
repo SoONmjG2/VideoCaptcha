@@ -15,13 +15,13 @@
     "custom-calibration": "node devServer samples/custom-calibration/index.html 8082"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "live-server": "^1.2.2",
     "parcel": "^2.15.2",
     "parcel-bundler": "^1.12.4",
     "vite": "^7.0.6"
   },
   "dependencies": {
-    "cross-env": "^7.0.3",
     "express": "^4.17.1",
     "open": "^8.2.1",
     "regenerator-runtime": "^0.14.1",
