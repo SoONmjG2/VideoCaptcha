@@ -20,23 +20,23 @@ async function startServer() {
     await client.connect();
     console.log("✅ MongoDB connected!");
 
-    const db = client.db("videocaptcha"); // ← DB명
-    collection = db.collection("test");   // ← 컬렉션명
+    const db = client.db("test"); // ← DB명
+    collection = db.collection("gazeData");   // ← 컬렉션명
 
-    // ✅ gaze data 저장
-    app.post("/save-data", async (req, res) => {
-      try {
-        const { gazeData } = req.body;
-        if (!Array.isArray(gazeData)) {
-          return res.status(400).json({ success: false, message: "gazeData must be an array" });
-        }
-        await collection.insertMany(gazeData.map(d => ({ type: "gaze", ...d })));
-        res.json({ success: true });
-      } catch (err) {
-        console.error("❌ Insert error:", err);
-        res.status(500).json({ success: false });
-      }
-    });
+    // // ✅ gaze data 저장
+    // app.post("/save-data", async (req, res) => {
+    //   try {
+    //     const { gazeData } = req.body;
+    //     if (!Array.isArray(gazeData)) {
+    //       return res.status(400).json({ success: false, message: "gazeData must be an array" });
+    //     }
+    //     await collection.insertMany(gazeData.map(d => ({ type: "gaze", ...d })));
+    //     res.json({ success: true });
+    //   } catch (err) {
+    //     console.error("❌ Insert error:", err);
+    //     res.status(500).json({ success: false });
+    //   }
+    // });
 
     // ✅ 영상 정보 제공 (MongoDB에서 읽음)
     app.get("/video-data", async (req, res) => {

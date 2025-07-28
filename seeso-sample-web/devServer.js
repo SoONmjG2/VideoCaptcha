@@ -1,3 +1,4 @@
+// seeso-sample-web 기본으로 있던 js코드 
 const Bundler = require('parcel-bundler');
 const express = require('express');
 const http = require('http');

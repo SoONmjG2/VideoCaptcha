@@ -1,3 +1,4 @@
+//seeso 기본 코드 삭제 XXX 
 // helper functions to display gaze information and dot in browser.
 
 
