@@ -1,3 +1,4 @@
+// index.js
 import 'regenerator-runtime/runtime';
 import EasySeeSo from 'seeso/easy-seeso';
 import { showGaze, hideGaze } from "../showGaze";
@@ -8,22 +9,23 @@ const dotMinSize = 5;
 
 let isCalibrationMode = false;
 let eyeTracker = null;
-let currentX, currentY;
+let isTracking = false;
 let calibrationButton;
 let savePlayButton;
+let videoStartTimestamp = null;
+
 let gazeDataArray = [];
 let dragDataArray = [];
-let playInterval = null;
-let isTracking = false;
 let isDragging = false;
-
+let isPlayingBack = false;
 let answerPoints = [];
+let currentX = 0, currentY = 0; // 🔥 calibration 점 좌표 저장
 
+// ✅ 정답 JSON 불러오기 (click 위치 확인용)
 async function loadAnswerJSON() {
   try {
-    const res = await fetch('./seeso-sample-web/data/drag.json',{ cache: "no-store" });  // JSON 파일 경로 맞춰주세요
+    const res = await fetch('./seeso-sample-web/data/drag.json', { cache: 'no-store' });
     if (!res.ok) throw new Error('정답 JSON 불러오기 실패');
-    
     answerPoints = await res.json();
     console.log('정답 좌표 불러옴:', answerPoints);
   } catch (e) {
@@ -31,30 +33,10 @@ async function loadAnswerJSON() {
   }
 }
 
-
-function getVideoClickCoordinates(event) {
-  const video = event.target;
-  const rect = video.getBoundingClientRect();
-  const clickX = event.clientX - rect.left;
-  const clickY = event.clientY - rect.top;
-  return { x: clickX, y: clickY };
-}
-
-let videoStartTimestamp = null;  // 영상 재생 시작 시점 절대 시간(ms)
-
-const video = document.getElementById("myVideo");
-
-video.addEventListener('play', () => {
-  videoStartTimestamp = Date.now();  // 영상 시작 시점의 절대 시간 기록
-});
-
+// ✅ 영상 클릭 시 정답 여부 판별
 function isCorrectAnswerByTime(clickX, clickY, videoTimeMs, tolerance = 20, timeWindow = 500) {
-  // 영상 기준 시간(ms)을 절대 시간으로 변환
   const absoluteTime = videoStartTimestamp + videoTimeMs;
-
-  // 정답 데이터 timestamp는 절대 시간이므로, 영상 절대 시간과 비교
   const candidates = answerPoints.filter(p => Math.abs(p.timestamp - absoluteTime) <= timeWindow);
-
   return candidates.some(point => {
     const dx = point.x - clickX;
     const dy = point.y - clickY;
@@ -62,26 +44,26 @@ function isCorrectAnswerByTime(clickX, clickY, videoTimeMs, tolerance = 20, time
   });
 }
 
-
-
+// ✅ 영상 클릭 이벤트 등록
 function addVideoClickListener() {
   const video = document.getElementById("myVideo");
   if (!video) return;
 
   video.addEventListener('click', (e) => {
-    const { x, y } = getVideoClickCoordinates(e);
+    const rect = video.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
     const videoTimeMs = video.currentTime * 1000;
 
-    if (isCorrectAnswerByTime(x, y, videoTimeMs)) {
+    if (isCorrectAnswerByTime(clickX, clickY, videoTimeMs)) {
       alert('✅ 정답입니다!');
     } else {
       alert('❌ 오답입니다!');
     }
-
   });
 }
 
-
+// ✅ 캘리브레이션 버튼 클릭 시 동작
 function onClickCalibrationBtn() {
   if (!isCalibrationMode) {
     isCalibrationMode = true;
@@ -100,375 +82,139 @@ function onClickCalibrationBtn() {
     }, 2000);
 
     calibrationButton.style.display = 'none';
-    hideCalibrationTitle();
+    document.getElementById("calibrationTitle").style.display = 'none';
 
     const video = document.getElementById("myVideo");
     if (video) video.style.display = 'none';
   }
 }
 
+// ✅ 시선 추적 중 호출됨
 function onGaze(gazeInfo) {
   if (!isCalibrationMode && isTracking) {
     showGaze(gazeInfo);
-    gazeDataArray.push({
-      timestamp: Date.now(),
-      x: gazeInfo.x,
-      y: gazeInfo.y
-    });
+    gazeDataArray.push({ timestamp: Date.now(), x: gazeInfo.x, y: gazeInfo.y });
   } else {
     hideGaze();
   }
 }
 
-function onCalibrationNextPoint(pointX, pointY) {
-  currentX = pointX;
-  currentY = pointY;
-  let ctx = clearCanvas();
-  drawCircle(currentX, currentY, dotMinSize, ctx);
+function onCalibrationNextPoint(x, y) {
+  currentX = x;
+  currentY = y;
+  const ctx = clearCanvas();
+  drawCircle(x, y, dotMinSize, ctx);
   eyeTracker.startCollectSamples();
 }
 
 function onCalibrationProgress(progress) {
-  let ctx = clearCanvas();
-  let dotSize = dotMinSize + (dotMaxSize - dotMinSize) * progress;
+  const ctx = clearCanvas();
+  const dotSize = dotMinSize + (dotMaxSize - dotMinSize) * progress;
   drawCircle(currentX, currentY, dotSize, ctx);
 }
 
-function drawCircle(x, y, dotSize, ctx) {
-  ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-  ctx.beginPath();
-  ctx.arc(x, y, dotSize, 0, Math.PI * 2, true);
-  ctx.fill();
-}
-
-function onCalibrationFinished(calibrationData) {
+function onCalibrationFinished() {
   clearCanvas();
   isCalibrationMode = false;
   calibrationButton.style.display = 'none';
-  hideCalibrationTitle();
-
   eyeTracker.showImage();
   isTracking = true;
-
   if (savePlayButton) savePlayButton.style.display = 'inline-block';
-
   const video = document.getElementById("myVideo");
   if (video) {
     video.style.display = 'block';
     video.play();
   }
-
-  const overlayText = document.getElementById('overlayText');
-  if (overlayText) overlayText.style.display = 'block';
+  document.getElementById('overlayText').style.display = 'block';
 }
 
 function clearCanvas() {
-  let canvas = document.getElementById("output");
+  const canvas = document.getElementById("output");
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  let ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   return ctx;
 }
 
+function drawCircle(x, y, radius, ctx) {
+  ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function showFocusText() {
-  let focusText = document.createElement("div");
-  focusText.innerText = "Focus on point";
-  focusText.style.position = "fixed";
-  focusText.style.top = "50%";
-  focusText.style.left = "50%";
-  focusText.style.transform = "translate(-50%, -50%)";
-  document.body.appendChild(focusText);
-  return focusText;
+  const el = document.createElement("div");
+  el.innerText = "Focus on point";
+  el.style.position = "fixed";
+  el.style.top = "50%";
+  el.style.left = "50%";
+  el.style.transform = "translate(-50%, -50%)";
+  document.body.appendChild(el);
+  return el;
 }
 
-function hideFocusText(focusText) {
-  document.body.removeChild(focusText);
+function hideFocusText(el) {
+  document.body.removeChild(el);
 }
 
-function hideCalibrationTitle() {
-  const calibrationTitle = document.getElementById("calibrationTitle");
-  if (calibrationTitle) calibrationTitle.style.display = "none";
-}
-
-function showCalibrationTitle() {
-  const calibrationTitle = document.getElementById("calibrationTitle");
-  if (calibrationTitle) calibrationTitle.style.display = "block";
-}
-
-function saveSeparateJsonFiles() {
-  if (gazeDataArray.length === 0 && dragDataArray.length === 0) {
-    alert("저장할 데이터가 없습니다.");
-    return false;
-  }
-
-  // 시선 데이터 JSON 생성
-  const gazeJsonContent = JSON.stringify(gazeDataArray, null, 2);
-
-  // 드래그 데이터 JSON 생성
-  const dragJsonContent = JSON.stringify(dragDataArray, null, 2);
-
-  // JSON 다운로드 헬퍼
-  function downloadJson(filename, content) {
-    const blob = new Blob([content], { type: 'application/json;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }
-
-  // 시선 데이터 저장
-  downloadJson(`gaze_data_${new Date().toISOString()}.json`, gazeJsonContent);
-  // 드래그 데이터 저장
-  downloadJson(`drag_data_${new Date().toISOString()}.json`, dragJsonContent);
-
-  return true;
-}
-
-
-let isPlayingBack = false;
-
-function playGazeAndDragWithVideoSync() {
-
-  if (isPlayingBack) return;  // 이미 재생 중이면 중복 실행 막기
-  isPlayingBack = true;
-
-  const video = document.getElementById("myVideo");
-  if (!video) {
-    alert("비디오 요소가 없습니다.");
-    return;
-  }
-
-  const ctx = document.getElementById("output").getContext("2d");
-
-  let startTime = Math.min(
-    gazeDataArray.length ? gazeDataArray[0].timestamp : Infinity,
-    dragDataArray.length ? dragDataArray[0].timestamp : Infinity
-  );
-
-  let lastGazeTime = gazeDataArray.length ? gazeDataArray[gazeDataArray.length - 1].timestamp : 0;
-  let lastDragTime = dragDataArray.length ? dragDataArray[dragDataArray.length - 1].timestamp : 0;
-  let lastTimestamp = Math.max(lastGazeTime, lastDragTime);
-
-  function drawFrame() {
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-    const currentVideoTimeMs = video.currentTime * 1000;
-
-    // 누적 데이터 그리기
-    for (let i = 0; i < gazeDataArray.length; i++) {
-      if (gazeDataArray[i].timestamp - startTime <= currentVideoTimeMs) {
-        drawCircle(gazeDataArray[i].x, gazeDataArray[i].y, dotMinSize, ctx);
-      }
-    }
-
-    let prevDragPoint = null;
-    for (let i = 0; i < dragDataArray.length; i++) {
-      if (dragDataArray[i].timestamp - startTime <= currentVideoTimeMs) {
-        const point = dragDataArray[i];
-        if (point.type === 'start') {
-          prevDragPoint = { x: point.x, y: point.y };
-        } else if (point.type === 'move' && prevDragPoint) {
-          ctx.strokeStyle = '#0000FF';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(prevDragPoint.x, prevDragPoint.y);
-          ctx.lineTo(point.x, point.y);
-          ctx.stroke();
-          prevDragPoint = { x: point.x, y: point.y };
-        } else if (point.type === 'end') {
-          prevDragPoint = null;
-        }
-      }
-    }
-
-    // 재생 시간이 데이터 끝에 도달하면 영상 멈춤
-    if (currentVideoTimeMs >= (lastTimestamp - startTime)) {
-      if (!video.paused) {
-        video.pause();
-      }
-      isPlayingBack = false;  // 재생 종료 표시
-      return;
-    }
-
-    if (!video.paused && !video.ended) {
-      requestAnimationFrame(drawFrame);
-    }
-  }
-
-  requestAnimationFrame(drawFrame);
-}
-
-
-
-function onClickSavePlayBtn() {
-  if (eyeTracker && isTracking) {
-    eyeTracker.stopTracking();
-    isTracking = false;
-  }
-  
-// ✅ 여기에 DB 저장 요청 추가
-  fetch("http://localhost:3000/save-data", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(gazeDataArray[gazeDataArray.length - 1]) // 가장 최근 값 하나 저장
-  }).then(res => res.json())
-    .then(result => {
-      if (result.success) {
-        console.log("✅ gaze data 저장 완료 (DB)");
-      } else {
-        console.error("❌ gaze data 저장 실패 (DB)");
-      }
-    }).catch(err => {
-      console.error("❌ fetch 오류:", err);
-    });
-
-  // 원래 로컬 JSON 저장
-  const saved = saveSeparateJsonFiles();
-  if (!saved) return;
-
-  playGazeAndDragWithVideoSync();
-
-  const video = document.getElementById("myVideo");
-  if (video) {
-    video.currentTime = 0;
-    video.play();
-  }
-  
-}
-
-async function main() {
-  if (!calibrationButton) {
-    calibrationButton = document.getElementById('calibrationButton');
-    calibrationButton.addEventListener('click', onClickCalibrationBtn);
-    calibrationButton.disabled = true;
-  }
-
-  if (!savePlayButton) {
-    savePlayButton = document.createElement('button');
-    savePlayButton.id = 'savePlayButton';
-    savePlayButton.innerText = 'Save & Play';
-    savePlayButton.style.padding = '10px 20px';
-    savePlayButton.style.fontSize = '16px';
-    savePlayButton.style.display = 'none';
-    savePlayButton.style.marginTop = '10px';
-    document.querySelector('.container').appendChild(savePlayButton);
-
-    savePlayButton.addEventListener('click', onClickSavePlayBtn);
-  }
-
-  if (!eyeTracker) {
-    eyeTracker = new EasySeeSo();
-
-    await eyeTracker.init(
-      licenseKey,
-      async () => {
-        await eyeTracker.startTracking(onGaze, () => {});
-        eyeTracker.showImage();
-
-        if (!eyeTracker.checkMobile()) {
-          eyeTracker.setMonitorSize(14);
-          eyeTracker.setFaceDistance(50);
-          eyeTracker.setCameraPosition(window.outerWidth / 2, true);
-        }
-
-        calibrationButton.disabled = false;
-      },
-      () => console.log("callback when init failed.")
-    );
-  } else {
-    calibrationButton.disabled = false;
-  }
-
-  document.addEventListener('mousedown', (e) => {
-    if (!isCalibrationMode && isTracking&& videoStartTimestamp) {
-      isDragging = true;
-      dragDataArray.push({
-        type: 'start',
-        timestamp: Date.now(),
-        x: e.clientX,
-        y: e.clientY
-      });
-    }
-  });
-
-  document.addEventListener('mousemove', (e) => {
-    if (isDragging && isTracking) {
-      dragDataArray.push({
-        type: 'move',
-        timestamp: Date.now(),
-        x: e.clientX,
-        y: e.clientY
-      });
-      const canvas = document.getElementById('output');
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#0000FF';
-      ctx.beginPath();
-      ctx.arc(e.clientX, e.clientY, 3, 0, Math.PI * 2, true);
-      ctx.fill();
-    }
-  });
-
-  document.addEventListener('mouseup', (e) => {
-    if (isDragging && isTracking) {
-      isDragging = false;
-      dragDataArray.push({
-        type: 'end',
-        timestamp: Date.now(),
-        x: e.clientX,
-        y: e.clientY
-      });
-    }
-  });
-
-  // 정답 CSV 파일 읽기
-  await loadAnswerJSON();
-
-  // 영상 클릭 이벤트 등록
-  addVideoClickListener();
-
-}
-
+// ✅ 초기 실행
 (async () => {
-
   try {
+    // 1. 백엔드에서 영상 URL과 질문 텍스트 받아옴
     const res = await fetch("http://localhost:3000/video-data");
     const data = await res.json();
     const video = document.getElementById("myVideo");
-    const source = document.createElement("source");
-    source.src = data.drive_url;
-    source.type = "video/mp4";
-    video.appendChild(source);
+    video.src = data.videoUrl;
     const overlay = document.getElementById("overlayText");
-    overlay.textContent = data.overlay_text;
+    overlay.textContent = data.question;
   } catch (e) {
     console.error("❌ DB에서 영상/텍스트 로딩 실패", e);
   }
 
-  await main();
+  // 2. 정답좌표 JSON 로딩 + 클릭 이벤트 등록
+  await loadAnswerJSON();
+  addVideoClickListener();
 
+  // 3. 캘리브레이션 버튼 초기화
+  calibrationButton = document.getElementById('calibrationButton');
+  calibrationButton.addEventListener('click', onClickCalibrationBtn);
+  calibrationButton.disabled = true;
+
+  // 4. save & play 버튼 동적 생성
+  savePlayButton = document.createElement('button');
+  savePlayButton.innerText = 'Save & Play';
+  savePlayButton.style.display = 'none';
+  savePlayButton.style.marginTop = '10px';
+  document.querySelector('.container').appendChild(savePlayButton);
+
+  // 5. SeeSo EyeTracker 초기화
+  eyeTracker = new EasySeeSo();
+  await eyeTracker.init(
+    licenseKey,
+    async () => {
+      await eyeTracker.startTracking(onGaze, () => {});
+      eyeTracker.showImage();
+      calibrationButton.disabled = false;
+    },
+    () => console.log("❌ SeeSo 초기화 실패")
+  );
+
+  // 6. 영상 재생 시 타이밍 저장
   const video = document.getElementById("myVideo");
-  if (video) {
-    video.style.display = 'none';
+  video.addEventListener("play", () => {
+    videoStartTimestamp = Date.now();
+    if (!isCalibrationMode && eyeTracker && !isTracking) {
+      eyeTracker.startTracking(onGaze, () => {});
+      isTracking = true;
+    }
+  });
 
-    video.addEventListener("play", () => {
-      if (!isCalibrationMode && eyeTracker && !isTracking) {
-        eyeTracker.startTracking(onGaze, () => {});
-        isTracking = true;
-      }
-    });
-
-    video.addEventListener("pause", () => {
-      if (eyeTracker && isTracking) {
-        eyeTracker.stopTracking();
-        isTracking = false;
-      }
-    });
-  }
+  video.addEventListener("pause", () => {
+    if (eyeTracker && isTracking) {
+      eyeTracker.stopTracking();
+      isTracking = false;
+    }
+  });
 })();

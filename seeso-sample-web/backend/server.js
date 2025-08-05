@@ -21,40 +21,38 @@ async function startServer() {
     console.log("✅ MongoDB connected!");
 
     const db = client.db("test"); // ← DB명
-    collection = db.collection("gazeData");   // ← 컬렉션명
+    collection = db.collection("gazeData"); // ← 컬렉션명
 
-    // // ✅ gaze data 저장
-    // app.post("/save-data", async (req, res) => {
-    //   try {
-    //     const { gazeData } = req.body;
-    //     if (!Array.isArray(gazeData)) {
-    //       return res.status(400).json({ success: false, message: "gazeData must be an array" });
-    //     }
-    //     await collection.insertMany(gazeData.map(d => ({ type: "gaze", ...d })));
-    //     res.json({ success: true });
-    //   } catch (err) {
-    //     console.error("❌ Insert error:", err);
-    //     res.status(500).json({ success: false });
-    //   }
-    // });
-
-    // ✅ 영상 정보 제공 (MongoDB에서 읽음)
+    // ✅ 영상 정보 제공 API
     app.get("/video-data", async (req, res) => {
       try {
-        const doc = await collection.findOne({ drive_url: { $exists: true } }); // 조건은 필요에 따라 수정
-        if (!doc) return res.status(404).json({ error: "No video data found" });
+        const doc = await collection.findOne({ videoUrl: { $exists: true } });
+        console.log("✅ 찾은 문서:", doc);
 
-        // Google Drive 링크에서 ID 추출
-        const match = doc.drive_url.match(/\/d\/(.+?)\//);
+        const videoUrl = doc?.videoUrl;
+
+        console.log("💬 typeof videoUrl:", typeof videoUrl);
+        console.log("💬 videoUrl 내용:", videoUrl);
+
+        if (!videoUrl || typeof videoUrl !== 'string') {
+          console.error("❌ videoUrl이 존재하지 않거나 문자열이 아님:", videoUrl);
+          return res.status(400).json({ error: "Invalid videoUrl" });
+        }
+
+        // Google Drive ID 추출
+        const match = videoUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
         const fileId = match ? match[1] : null;
 
-        if (!fileId) return res.status(400).json({ error: "Invalid drive_url" });
+        if (!fileId) {
+          console.error("❌ Google Drive ID 추출 실패:", videoUrl);
+          return res.status(400).json({ error: "Invalid Google Drive URL format" });
+        }
 
         const previewUrl = `https://drive.google.com/uc?id=${fileId}&export=download`;
 
         res.json({
-          drive_url: previewUrl,
-          overlay_text: doc.question || "이 영상은 시선 추적 테스트용입니다."
+          videoUrl: previewUrl,
+          question: doc.question || "이 영상은 시선 추적 테스트용입니다."
         });
       } catch (err) {
         console.error("❌ /video-data error:", err);
@@ -62,10 +60,7 @@ async function startServer() {
       }
     });
 
-    // ✅ 테스트용 API
-    app.get("/test", (req, res) => res.send("✅ API is working"));
-
-    // ✅ 서버 실행
+    // ✅ 서버 시작
     app.listen(3000, () => {
       console.log("🚀 Server running at http://localhost:3000");
     });
