@@ -10,13 +10,13 @@
 
 <body>
   <div class="video-container">
-  <div class="overlay-text" id="overlayText">로딩중..</div>
+    <div class="overlay-text" id="overlayText">로딩중..</div>
 
-  <video id="myVideo" loop autoplay muted controls>
-    브라우저가 동영상을 지원하지 않습니다.
-  </video>
-  
-</div>
+    <video id="myVideo" loop autoplay muted controls width="640" height="360">
+      브라우저가 video 태그를 지원하지 않습니다.
+    </video>
+  </div>
+
   <canvas id="preview" style="position: fixed;"></canvas>
   <canvas id="output" style="position: fixed; display: none;"></canvas>
 

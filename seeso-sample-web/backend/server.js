@@ -1,17 +1,15 @@
-// backend/server.js
-require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const { MongoClient } = require('mongodb');
+const axios = require('axios');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 환경변수에서 MongoDB URI 가져오기
 const mongoUri = process.env.MONGO_URI;
-console.log("✅ MONGO_URI:", mongoUri);
-
 const client = new MongoClient(mongoUri);
 let collection;
 
@@ -19,53 +17,61 @@ async function startServer() {
   try {
     await client.connect();
     console.log("✅ MongoDB connected!");
+    const db = client.db("test");
+    collection = db.collection("gazeData");
 
-    const db = client.db("test"); // ← DB명
-    collection = db.collection("gazeData"); // ← 컬렉션명
-
-    // ✅ 영상 정보 제공 API
     app.get("/video-data", async (req, res) => {
       try {
         const doc = await collection.findOne({ videoUrl: { $exists: true } });
-        console.log("✅ 찾은 문서:", doc);
-
+        console.log("🎯 /video-data doc:", doc); // 이거 추가!!
+        
         const videoUrl = doc?.videoUrl;
-
-        console.log("💬 typeof videoUrl:", typeof videoUrl);
-        console.log("💬 videoUrl 내용:", videoUrl);
-
-        if (!videoUrl || typeof videoUrl !== 'string') {
-          console.error("❌ videoUrl이 존재하지 않거나 문자열이 아님:", videoUrl);
+        if (!videoUrl) {
+          console.error("❌ videoUrl 없음");
           return res.status(400).json({ error: "Invalid videoUrl" });
         }
-
-        // Google Drive ID 추출
-        const match = videoUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-        const fileId = match ? match[1] : null;
-
-        if (!fileId) {
-          console.error("❌ Google Drive ID 추출 실패:", videoUrl);
-          return res.status(400).json({ error: "Invalid Google Drive URL format" });
-        }
-
-        const previewUrl = `https://drive.google.com/uc?id=${fileId}&export=download`;
-
-        res.json({
-          videoUrl: previewUrl,
-          question: doc.question || "이 영상은 시선 추적 테스트용입니다."
-        });
+        res.json({ videoUrl, question: doc.question || "영상 질문입니다." });
       } catch (err) {
-        console.error("❌ /video-data error:", err);
-        res.status(500).json({ error: "Internal server error" });
+        console.error("🔥 /video-data 에러:", err.message);
+        res.status(500).send("서버 오류");
       }
     });
 
-    // ✅ 서버 시작
-    app.listen(3000, () => {
-      console.log("🚀 Server running at http://localhost:3000");
+    // ✅ 🔥 프록시: Firebase 영상 스트리밍 (COEP-safe)
+    // ⚠️ 정적 파일보다 위에 둬야 함!
+    app.get("/video", async (req, res) => {
+      try {
+        console.log("✅ /video 라우트 들어옴");
+        const doc = await collection.findOne({ videoUrl: { $exists: true } });
+        const videoUrl = doc?.videoUrl;
+        console.log("🎥 프록시 영상 URL:", videoUrl);
+
+        const response = await axios.get(videoUrl, { responseType: "stream" });
+        res.setHeader("Content-Type", "video/mp4");
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+
+        response.data.pipe(res);
+      } catch (err) {
+        console.error("🔥 프록시 오류:", err.message);
+        res.status(500).send("프록시 서버 오류");
+      }
     });
+
+    // ✅ 정적 파일 서빙 (SeeSo 프론트) → 이거보다 위에 /video 있어야 함!
+    const gazePath = path.join(__dirname, '../samples/gaze');
+    app.use(express.static(gazePath));
+
+    // ✅ 기본 라우트 (index.html)
+    app.get("/", (req, res) => {
+      res.sendFile(path.join(gazePath, "index.html"));
+    });
+
+    app.listen(3000, () => {
+      console.log("🚀 서버 실행됨: http://localhost:3000");
+    });
+
   } catch (err) {
-    console.error("❌ MongoDB connection failed:", err);
+    console.error("❌ MongoDB connection error:", err);
   }
 }
 

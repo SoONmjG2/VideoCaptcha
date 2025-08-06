@@ -1,4 +1,3 @@
-// index.js
 import 'regenerator-runtime/runtime';
 import EasySeeSo from 'seeso/easy-seeso';
 import { showGaze, hideGaze } from "../showGaze";
@@ -19,19 +18,19 @@ let dragDataArray = [];
 let isDragging = false;
 let isPlayingBack = false;
 let answerPoints = [];
-let currentX = 0, currentY = 0; // 🔥 calibration 점 좌표 저장
+let currentX = 0, currentY = 0;
 
-// ✅ 정답 JSON 불러오기 (click 위치 확인용)
-async function loadAnswerJSON() {
-  try {
-    const res = await fetch('./seeso-sample-web/data/drag.json', { cache: 'no-store' });
-    if (!res.ok) throw new Error('정답 JSON 불러오기 실패');
-    answerPoints = await res.json();
-    console.log('정답 좌표 불러옴:', answerPoints);
-  } catch (e) {
-    console.error('정답 JSON 로드 에러:', e);
-  }
-}
+// // ✅ 정답 JSON 불러오기
+// async function loadAnswerJSON() {
+//   try {
+//     const res = await fetch('./seeso-sample-web/data/drag.json', { cache: 'no-store' });
+//     if (!res.ok) throw new Error('정답 JSON 불러오기 실패');
+//     answerPoints = await res.json();
+//     console.log('정답 좌표 불러옴:', answerPoints);
+//   } catch (e) {
+//     console.error('정답 JSON 로드 에러:', e);
+//   }
+// }
 
 // ✅ 영상 클릭 시 정답 여부 판별
 function isCorrectAnswerByTime(clickX, clickY, videoTimeMs, tolerance = 20, timeWindow = 500) {
@@ -63,7 +62,7 @@ function addVideoClickListener() {
   });
 }
 
-// ✅ 캘리브레이션 버튼 클릭 시 동작
+// ✅ 캘리브레이션 버튼 클릭 시
 function onClickCalibrationBtn() {
   if (!isCalibrationMode) {
     isCalibrationMode = true;
@@ -89,7 +88,6 @@ function onClickCalibrationBtn() {
   }
 }
 
-// ✅ 시선 추적 중 호출됨
 function onGaze(gazeInfo) {
   if (!isCalibrationMode && isTracking) {
     showGaze(gazeInfo);
@@ -159,41 +157,40 @@ function hideFocusText(el) {
   document.body.removeChild(el);
 }
 
-// ✅ 초기 실행
 (async () => {
   try {
-    // 1. 백엔드에서 영상 URL과 질문 텍스트 받아옴
-    const res = await fetch("http://localhost:3000/video-data");
+    // ✅ 백엔드에서 영상 URL과 질문 받아오기
+    const res = await fetch("/api/video-data");
     const data = await res.json();
+
     const video = document.getElementById("myVideo");
-    video.src = data.videoUrl;
+    video.src = "/api/video";// ✅ 프록시 사용 
+    video.play().catch(e => console.error("영상 재생 실패", e));
+
     const overlay = document.getElementById("overlayText");
     overlay.textContent = data.question;
   } catch (e) {
     console.error("❌ DB에서 영상/텍스트 로딩 실패", e);
   }
 
-  // 2. 정답좌표 JSON 로딩 + 클릭 이벤트 등록
-  await loadAnswerJSON();
+  // await loadAnswerJSON();
   addVideoClickListener();
 
-  // 3. 캘리브레이션 버튼 초기화
   calibrationButton = document.getElementById('calibrationButton');
   calibrationButton.addEventListener('click', onClickCalibrationBtn);
   calibrationButton.disabled = true;
 
-  // 4. save & play 버튼 동적 생성
   savePlayButton = document.createElement('button');
   savePlayButton.innerText = 'Save & Play';
   savePlayButton.style.display = 'none';
   savePlayButton.style.marginTop = '10px';
   document.querySelector('.container').appendChild(savePlayButton);
 
-  // 5. SeeSo EyeTracker 초기화
   eyeTracker = new EasySeeSo();
   await eyeTracker.init(
     licenseKey,
     async () => {
+      console.log("✅ SeeSo 초기화 성공");
       await eyeTracker.startTracking(onGaze, () => {});
       eyeTracker.showImage();
       calibrationButton.disabled = false;
@@ -201,7 +198,6 @@ function hideFocusText(el) {
     () => console.log("❌ SeeSo 초기화 실패")
   );
 
-  // 6. 영상 재생 시 타이밍 저장
   const video = document.getElementById("myVideo");
   video.addEventListener("play", () => {
     videoStartTimestamp = Date.now();
@@ -217,4 +213,4 @@ function hideFocusText(el) {
       isTracking = false;
     }
   });
-})();
+})(); 
