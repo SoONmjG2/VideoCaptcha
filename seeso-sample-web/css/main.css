@@ -21,6 +21,7 @@ video {
   display: none;
 }
 
+/*기존 seeso파일 css*/
 .container {
   display: flex;
   justify-content: center;
@@ -33,6 +34,7 @@ video {
   position: relative;
 }
 
+/*기존 seeso파일 css*/
 canvas {
   pointer-events: none;
   position: fixed;

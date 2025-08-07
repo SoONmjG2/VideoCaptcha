@@ -5,8 +5,8 @@ const { createProxyMiddleware } = require('http-proxy-middleware'); // ✅ 추�
 const open = require('open');
 
 const app = express();
-const bundlePath = process.argv[2];
-const port = process.argv[3];
+const bundlePath = 'public/login.html'; // 기본값 고정
+const port = process.argv[3] || 8082;
 
 // 📌 COEP, COOP 헤더
 app.use((req, res, next) => {

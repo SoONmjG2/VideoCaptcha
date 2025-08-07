@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>포털</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --primary: #3b82f6;
+      --primary-dark: #2563eb;
+      --text: #1e293b;
+      --gray: #64748b;
+      --bg-gradient: linear-gradient(to bottom right, #f0f9ff, #ecfdf5);
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg-gradient);
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      background: white;
+      padding: 48px 40px;
+      border-radius: 20px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.06);
+      width: 100%;
+      max-width: 460px;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 24px;
+      color: var(--text);
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    p {
+      font-size: 15px;
+      color: var(--gray);
+      margin-bottom: 32px;
+      line-height: 1.6;
+    }
+
+    .button {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 500;
+      border: none;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    .button-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+
+    .button-primary:hover {
+      background-color: var(--primary-dark);
+    }
+
+    .button-outline {
+      background-color: white;
+      color: var(--primary);
+      border: 1.5px solid var(--primary);
+    }
+
+    .button-outline:hover {
+      background-color: #e0f2fe;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>인증이 완료되었습니다</h1>
+    <p>
+      모든 절차가 정상적으로 완료되었습니다.<br />
+      아래 항목 중 원하는 작업을 선택해 주세요.
+    </p>
+    <button class="button button-primary" onclick="alert('캘리브레이션 보기 기능은 준비 중입니다.')">
+      캘리브레이션 보기
+    </button>
+    <button class="button button-outline" onclick="location.href='/login.html'">
+      다시 시작
+    </button>
+    <button class="button button-outline" onclick="alert('로그아웃 처리되었습니다.')">
+      로그아웃
+    </button>
+  </div>
+</body>
+</html>
