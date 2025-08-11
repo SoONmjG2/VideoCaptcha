@@ -8,19 +8,19 @@ document.getElementById("loginForm").addEventListener("submit", (e) => {
 
   if (username === "admin" && password === "1234") {
     // 로그인 성공 → 이동 없음
-    errorBox.innerText = "✅ 로그인 성공 (여기 머무름)";
+    errorBox.innerText = "로그인 성공";
     errorBox.style.color = "green";
     errorBox.style.display = "block";
 
     loginButton.disabled = true;
     loginButton.innerText = "로그인됨";
     setTimeout(() => {
-      window.location.href = "./destination.html";  // 또는 "/destination.html"
+      window.location.href = "/public/destination.html";  
     }, 1500);
 
   } else {
     // 로그인 실패 → 캘리브레이션 페이지로 이동
-    errorBox.innerText = "❌ 로그인 실패 → CAPTCHA로 이동 중...";
+    errorBox.innerText = "로그인 실패 → CAPTCHA로 이동 중...";
     errorBox.style.color = "red";
     errorBox.style.display = "block";
 
@@ -28,7 +28,7 @@ document.getElementById("loginForm").addEventListener("submit", (e) => {
     loginButton.innerText = "이동 중...";
 
     setTimeout(() => {
-      window.location.href = "/index.html";  // ✅ 실제 서빙 경로
+      window.location.href = "/samples/gaze/index.html";  
     }, 1500);
   }
 });

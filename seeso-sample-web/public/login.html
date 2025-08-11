@@ -4,90 +4,7 @@
   <meta charset="UTF-8" />
   <title>로그인</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <style>
-    :root {
-      --primary: #3b82f6;
-      --bg: #f8fafc;
-      --input-bg: #f1f5f9;
-      --input-border: #cbd5e1;
-      --text-color: #0f172a;
-    }
-
-    * {
-      box-sizing: border-box;
-      font-family: 'Segoe UI', sans-serif;
-    }
-
-    body {
-      margin: 0;
-      padding: 0;
-      background: var(--bg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-    }
-
-    .login-card {
-      background: white;
-      padding: 48px 36px;
-      border-radius: 20px;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.05);
-      width: 100%;
-      max-width: 400px;
-      transition: all 0.3s ease;
-    }
-
-    h2 {
-      text-align: center;
-      color: var(--text-color);
-      margin-bottom: 32px;
-      font-size: 26px;
-      font-weight: 600;
-    }
-
-    .form-control {
-      width: 100%;
-      padding: 14px 16px;
-      margin-bottom: 18px;
-      background-color: var(--input-bg);
-      border: 1px solid var(--input-border);
-      border-radius: 12px;
-      font-size: 15px;
-      color: var(--text-color);
-      outline: none;
-      transition: 0.2s ease;
-    }
-
-    .form-control:focus {
-      border-color: var(--primary);
-      background-color: #fff;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-    }
-
-    button {
-      width: 100%;
-      padding: 14px;
-      font-size: 16px;
-      background-color: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-    }
-
-    button:hover {
-      background-color: #2563eb;
-    }
-
-    #errorBox {
-      color: red;
-      text-align: center;
-      margin-bottom: 16px;
-      display: none;
-    }
-  </style>
+  <link rel="stylesheet" href="login.css">
 </head>
 <body>
   <div class="login-card">
@@ -100,6 +17,6 @@
     </form>
   </div>
 
-  <script src="/login.js"></script>
+  <script src="./login.js"></script>
 </body>
 </html>

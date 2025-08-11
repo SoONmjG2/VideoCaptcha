@@ -1,41 +1,64 @@
-const Bundler = require('parcel-bundler');
-const express = require('express');
+// devServer.js
+const path = require('path');
 const http = require('http');
-const { createProxyMiddleware } = require('http-proxy-middleware'); // ✅ 추가
+const express = require('express');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const Bundler = require('parcel-bundler');
 const open = require('open');
 
 const app = express();
-const bundlePath = 'public/login.html'; // 기본값 고정
-const port = process.argv[3] || 8082;
 
-// 📌 COEP, COOP 헤더
+const PORT = Number(process.argv[3]) || 8082;
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const SAMPLES_DIR = path.join(__dirname, 'samples');
+
+const ENTRY_HTML = [
+  path.join(PUBLIC_DIR, 'login.html'),
+  path.join(PUBLIC_DIR, 'destination.html'), 
+  path.join(SAMPLES_DIR, 'gaze', 'index.html'),
+];
+
+// COOP/COEP (SharedArrayBuffer)
 app.use((req, res, next) => {
-  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
 });
 
-// ✅ ✅ ✅ 프록시 설정: /api 요청은 백엔드 3000으로
+// API 프록시(필요 시)
 app.use('/api', createProxyMiddleware({
   target: 'http://localhost:3000',
   changeOrigin: true,
 }));
 
-// 📦 Parcel 번들링
-const bundler = new Bundler(bundlePath);
+// ★ Parcel 미들웨어(가장 먼저!)
+const bundler = new Bundler(ENTRY_HTML, {
+  hmr: true,
+  hmrPort: PORT + 1,
+  hmrHostname: 'localhost',
+});
 app.use(bundler.middleware());
 
-// 📁 정적 파일 제공
-app.use('/data', express.static(__dirname + '/data'));
+// 정적 서빙(항상 prefix)
+app.use('/public', express.static(PUBLIC_DIR, {
+  setHeaders: (res, fp) => { if (fp.endsWith('.html')) res.setHeader('Cache-Control', 'no-store'); },
+}));
+app.use('/samples', express.static(SAMPLES_DIR, {
+  setHeaders: (res, fp) => { if (fp.endsWith('.html')) res.setHeader('Cache-Control', 'no-store'); },
+}));
 
-// 🧠 서버 시작
+// 라우팅
+app.get('/', (_req, res) => res.redirect('/public/login.html'));
+
+
+// 서버 시작
 const server = http.createServer(app);
-server.listen(port);
-
-server.on('error', (err) => console.error(err));
-server.on('listening', () => {
+server.listen(PORT);
+server.on('listening', async () => {
   console.info('Server is running');
   console.info(`  NODE_ENV=[${process.env.NODE_ENV}]`);
-  console.info(`  Port=[${port}]`);
-  open(`http://localhost:${port}`);
+  console.info(`  PORT=[${PORT}]`);
+  try { await open(`http://localhost:${PORT}`); } catch {}
 });
+process.on('SIGINT', () => server.close(() => process.exit(0)));
