@@ -158,17 +158,30 @@ function hideFocusText(el) {
 }
 
 (async () => {
-  try {
-    // ✅ 백엔드에서 영상 URL과 질문 받아오기
-    const res = await fetch("/api/video-data");
+    try {
+    // ✅ 백엔드에서 랜덤 영상 메타( id, question, videoUrl ) 받아오기
+    const res = await fetch("/api/video-data", { cache: "no-store" });
+    if (!res.ok) throw new Error(`video-data ${res.status}`);
     const data = await res.json();
 
     const video = document.getElementById("myVideo");
-    video.src = "/api/video";// ✅ 프록시 사용 
-    video.play().catch(e => console.error("영상 재생 실패", e));
-
     const overlay = document.getElementById("overlayText");
-    overlay.textContent = data.question;
+
+    // ✅ 같은 영상 보장: id로 스트리밍
+    const id = data?.id;
+    video.src = id ? `/api/video?id=${encodeURIComponent(id)}` : `/api/video`; // 폴백
+    overlay.textContent = data?.question || "영상 질문입니다.";
+
+    // 🔇 자동재생 이슈 회피(필요 시)
+    video.muted = true;
+
+    // ✅ 로드 후 재생 안정화
+    await video.play().catch(() => {
+      // 첫 play 실패하면 loadeddata 후 재시도
+      video.addEventListener("loadeddata", () => {
+        video.play().catch(e => console.error("영상 재생 실패:", e));
+      }, { once: true });
+    });
   } catch (e) {
     console.error("❌ DB에서 영상/텍스트 로딩 실패", e);
   }
