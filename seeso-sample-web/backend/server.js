@@ -132,11 +132,6 @@ app.get('/', (_req, res) => {
           <p>Firebase Storage 프록시 (시크/재생바 이동 가능)</p>
           <code>GET https://api.peachprmoise.co.kr/video</code>
         </div>
-        <div class="api">
-          <h3>/</h3>
-          <p>이 안내 페이지</p>
-          <code>GET https://api.peachprmoise.co.kr/</code>
-        </div>
       </div>
       <p style="margin-top:16px">프론트(별도 도메인)에서 <span class="kbd">&lt;video src="/video"&gt;</span>를 쓰려면 CORS allowlist에 도메인을 추가하세요.</p>
     </div>
