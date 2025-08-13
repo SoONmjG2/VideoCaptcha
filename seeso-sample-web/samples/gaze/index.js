@@ -157,23 +157,21 @@ function hideFocusText(el) {
   document.body.removeChild(el);
 }
 
-const isProd = location.hostname.endsWith('peachprmoise.co.kr');
-const BASE = isProd 
-  ? 'https://api.peachprmoise.co.kr' 
-  : 'http://localhost:3000'; // 로컬 백엔드
+// ✅ 환경 분기 제거: 프론트 서버가 /api를 백엔드로 프록시함
+const BASE = '/api';
 
 (async () => {
   try {
     const res = await fetch(`${BASE}/video-data`, { cache: 'no-store' });
     const data = await res.json();
 
-    const video = document.getElementById("myVideo");
-    video.src = `${BASE}/video`; // 환경에 맞게 백엔드 주소 자동 선택
-    await video.play().catch(e => console.error("영상 재생 실패", e));
+    const video = document.getElementById('myVideo');
+    video.src = `${BASE}/video`; // 프록시 경유
+    await video.play().catch(e => console.error('영상 재생 실패', e));
 
-    document.getElementById("overlayText").textContent = data.question;
+    document.getElementById('overlayText').textContent = data.question || '영상 질문입니다.';
   } catch (e) {
-    console.error("❌ DB에서 영상/텍스트 로딩 실패", e);
+    console.error('❌ DB에서 영상/텍스트 로딩 실패', e);
   }
 
   // await loadAnswerJSON();
