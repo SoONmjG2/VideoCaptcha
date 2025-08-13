@@ -86,10 +86,6 @@ app.get('/video', async (req, res) => {
   }
 });
 
-/* ---------- 정적 파일 (필요 시) ---------- */
-const gazePath = path.join(__dirname, '../samples/gaze');
-app.use(express.static(gazePath));
-
 /* ---------- 루트: API 안내 페이지 ---------- */
 app.get('/', (_req, res) => {
   const html = `<!doctype html>
