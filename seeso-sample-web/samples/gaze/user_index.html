@@ -1,0 +1,46 @@
+<!doctype html>
+<html class="no-js" lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>시선 기반 CAPTCHA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="user_index.css" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <!-- 처음 안내 화면 -->
+  <div class="fade-screen" id="introScreen">
+    <p>시선 기록은 저장되지 않으며,<br>로그인 확인을 위한 정답 판정에만 사용됩니다.</p>
+  </div>
+
+  <!-- 동영상 + 버튼 영역 -->
+  <div class="video-area" id="videoArea">
+  <!-- 제목을 영상 위쪽에 넣음 -->
+  <div class="video-container">
+    <div class="overlay-text" id="overlayText">로딩중..</div>
+    <video id="myVideo" loop autoplay muted>
+      브라우저가 video 태그를 지원하지 않습니다.
+    </video>
+  </div>
+
+    <canvas id="preview" style="position: fixed;"></canvas>
+  <canvas id="output"></canvas>
+
+  <div class="btn-group">
+    <button id="calibrationButton">Start Calibration</button>
+    <button id="submitButton" class="hidden-init">Submit</button>
+    <button id="resetButton" class="hidden-init">Try again</button>
+  </div>
+</div>
+
+  <script src="./user_index.js"></script>
+  <script>
+    window.addEventListener("DOMContentLoaded", () => {
+      setTimeout(() => {
+        document.getElementById("introScreen").classList.add("fade-out");
+        document.getElementById("videoArea").classList.add("show");
+      }, 3000); // ✅ 3초 뒤 전환
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+:root {
+  --primary: #3b82f6;
+  --bg: #f8fafc;
+  --input-bg: #f1f5f9;
+  --input-border: #cbd5e1;
+  --text-color: #0f172a;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+.login-card {
+  background: #fff;
+  padding: 48px 36px;
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  max-width: 400px;
+  transition: all 0.3s ease;
+}
+
+h2 {
+  text-align: center;
+  color: var(--text-color);
+  margin-bottom: 20px;
+  font-size: 26px;
+  font-weight: 600;
+}

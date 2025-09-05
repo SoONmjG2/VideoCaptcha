@@ -1,3 +1,5 @@
+// 이전 user_index.js  
+// samples/gaze/user_index.js
 import 'regenerator-runtime/runtime';
 import EasySeeSo from 'seeso/easy-seeso';
 
@@ -15,26 +17,25 @@ const CAMERA_ERROR_URL = '/camera-error.html';
 const PREC = 4;
 const roundN = v => Number(v.toFixed(PREC));
 
-// ===== 시선 판정 파라미터 (반경 넓게) =====
-const GAZE_R_N = 0.11;              // (완화) 정답 근처 반경(정규화). 0.10~0.12 권장
-const GAZE_DWELL_MS = 140;          // (완화) 누적 체류 임계(ms)
-const GAZE_WIN_BEFORE_MS = 1000;    // (완화) 클릭 이전 창(ms)
-const GAZE_WIN_AFTER_MS  = 300;     // (완화) 클릭 이후 창(ms)
+// ===== 시선 판정 파라미터 (완화) =====
+const GAZE_R_N = 0.11;
+const GAZE_DWELL_MS = 140;
+const GAZE_WIN_BEFORE_MS = 1000;
+const GAZE_WIN_AFTER_MS  = 300;
 
 // (선택) 캠핑 방지
 const ENABLE_ENTRY_RULE  = false;
 const ENTRY_WINDOW_MS    = 600;
 const ENTRY_INNER_R_N    = GAZE_R_N / 2;
 
-// ===== 다운로드 동작 옵션 =====
-// 다중 파일 자동 다운로드가 막히는 환경이면 true 로 바꿔서 "합본 1파일"만 저장해도 됨.
+// 다운로드 동작 옵션
 const DOWNLOAD_COMBINED_ONLY = false;
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const distN = (x1,y1,x2,y2) => Math.hypot(x1-x2, y1-y2);
 
-// ===== 정답 정의 =====
-let ANSWER = [];          // /video-data 에서 받아올 정답 배열 [{xn, yn}, ...]
+// ===== 정답 =====
+let ANSWER = [];  // /video-data 에서 [{xn,yn}, ...]
 
 // ===== 상태 =====
 let isCalibrationMode = false;
@@ -44,9 +45,8 @@ let calibrationButton, saveDataButton, submitButton, resetButton;
 
 let isRecording = true;
 let videoStarted = false;
-let calibrationDone = false;
 
-// 업로드/그리기
+// 업로드/그리기(선택 기능)
 let isDrawingMode = false;
 let uploadedGaze = null, uploadedClicks = null;
 let jsonUploader, uploadButton, drawButton, cancelDrawButton, uploadName;
@@ -73,10 +73,23 @@ function n2p(xn, yn) { const c=getCanvas(); return { x: xn*c.width, y: yn*c.heig
 function p2n(x, y)   { const c=getCanvas(); return { xn: x/c.width, yn: y/c.height }; }
 
 // ===== Drawing =====
-function drawDotRGBA(x,y,r,rgba){ const ctx=getCtx(); ctx.fillStyle=rgba; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); }
-function drawClickCross(x,y,color='blue',size=6,lineWidth=2){ const ctx=getCtx(); ctx.beginPath(); ctx.moveTo(x-size,y); ctx.lineTo(x+size,y); ctx.moveTo(x,y-size); ctx.lineTo(x,y+size); ctx.lineWidth=lineWidth; ctx.strokeStyle=color; ctx.stroke(); }
+function drawDotRGBA(x,y,r,rgba){
+  const ctx=getCtx(); ctx.fillStyle=rgba;
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+}
 function drawDotNorm(xn,yn,r,rgba){ const {x,y}=n2p(xn,yn); drawDotRGBA(x,y,r,rgba); }
-function drawCrossNorm(xn,yn,color='blue',size=6,lineWidth=2){ const {x,y}=n2p(xn,yn); drawClickCross(x,y,color,size,lineWidth); }
+
+// (재생용 표시에서만 십자가가 필요하면 사용)
+function drawClickCross(x,y,color='blue',size=6,lineWidth=2){
+  const ctx=getCtx();
+  ctx.beginPath();
+  ctx.moveTo(x-size,y); ctx.lineTo(x+size,y);
+  ctx.moveTo(x,y-size); ctx.lineTo(x,y+size);
+  ctx.lineWidth=lineWidth; ctx.strokeStyle=color; ctx.stroke();
+}
+function drawCrossNorm(xn,yn,color='blue',size=6,lineWidth=2){
+  const {x,y}=n2p(xn,yn); drawClickCross(x,y,color,size,lineWidth);
+}
 
 // ===== UI helpers =====
 function placeSubmitInline(){
@@ -87,12 +100,25 @@ function placeResetInline(){
   if (!resetButton) return;
   Object.assign(resetButton.style,{position:'static',right:'',bottom:'',zIndex:'',marginLeft:'10px'});
 }
+
+// ★ show 시 hidden-init 클래스도 제거해서 !important 영향 제거
 function setActionButtonsVisible(show){
-  if (submitButton) submitButton.style.display = show ? 'inline-block' : 'none';
-  if (resetButton)  resetButton.style.display  = show ? 'inline-block' : 'none';
+  const ids = ['submitButton', 'resetButton'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (show) {
+      el.classList.remove('hidden-init');   // 핵심
+      el.style.display = 'inline-block';
+    } else {
+      el.style.display = 'none';
+      // 필요하면 다시 숨김 클래스 부여
+      // el.classList.add('hidden-init');
+    }
+  });
 }
 
-// 오른쪽 하단 도크: [파일명][파일 선택][그리기][그리기 취소][Save & Play]
+// 우하단 도크(업로드/그리기/Save&Play)
 function ensureRightDock(){
   let dock=document.getElementById('rightDock');
   if(!dock){
@@ -131,7 +157,7 @@ function onClickCalibrationBtn(){
   setActionButtonsVisible(false);
   const t=document.getElementById('calibrationTitle'); if (t) t.remove();
 
-  isCalibrationMode=true; calibrationDone=false;
+  isCalibrationMode=true;
 
   const canvas=getCanvas();
   canvas.style.display='block';
@@ -150,7 +176,7 @@ function onCalibrationNextPoint(x,y){ currentX=x; currentY=y; sizeCanvasToWindow
 function onCalibrationProgress(progress){ sizeCanvasToWindow(); clearCanvas(); const s=dotMinSize+(dotMaxSize-dotMinSize)*progress; drawCircle(currentX,currentY,s,getCtx()); }
 function onCalibrationFinished(){
   clearCanvas();
-  isCalibrationMode=false; calibrationDone=true;
+  isCalibrationMode=false;
   calibrationButton.style.display='none';
   eyeTracker.showImage(); isTracking=true;
 
@@ -163,7 +189,9 @@ function onCalibrationFinished(){
   if (video){ video.style.display='block'; video.play(); }
   document.getElementById('overlayText').style.display='block';
 
-  placeSubmitInline(); placeResetInline(); setActionButtonsVisible(true);
+  placeSubmitInline();
+  placeResetInline();
+  setActionButtonsVisible(true); // ← hidden-init 제거 + 표시
 
   if (uploadButton)      uploadButton.style.display='inline-block';
   if (drawButton)        drawButton.style.display='inline-block';
@@ -187,6 +215,7 @@ function renderRecordingOverlay(){
     const last=gazeDataArray[gazeDataArray.length-1];
     drawDotNorm(last.xn,last.yn,8,'rgba(255,0,0,1)');
   }
+  // 클릭은 불투명 파란 점(요청 사항)
   for (const c of clickDataArray) drawDotNorm(c.xn,c.yn,6,'rgba(0,0,255,0.5)');
 }
 
@@ -292,7 +321,7 @@ function entryRuleRecentIn(click, gaze, r_in=ENTRY_INNER_R_N, win=ENTRY_WINDOW_M
 // ===== 공통 유틸 =====
 const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
-// ✅ 다운로드 트리거 안정화를 위한 비동기 저장 헬퍼 (제출용)
+// 다운로드 헬퍼
 async function downloadJsonAsync(filename, payload){
   return new Promise((resolve) => {
     const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
@@ -314,7 +343,6 @@ async function downloadJsonAsync(filename, payload){
     });
   });
 }
-
 function downloadJson(filename, payload){
   const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -323,16 +351,11 @@ function downloadJson(filename, payload){
   a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  setTimeout(() => {
-    URL.revokeObjectURL(a.href);
-    a.remove();
-  }, 1200);
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1200);
 }
-function tsForFile(){
-  return new Date().toISOString().replace(/[:.]/g, '-');
-}
+function tsForFile(){ return new Date().toISOString().replace(/[:.]/g, '-'); }
 
-// (A) 두 파일 순차 저장 후 이동 (타임스탬프 파일명)
+// (A) 두 파일 저장 후 이동
 async function saveTwoFilesThenNavigate(gazeArr, clicksArr, url){
   const ts = tsForFile();
   downloadJson(`gaze_at_submit_${ts}.json`, gazeArr);
@@ -341,16 +364,14 @@ async function saveTwoFilesThenNavigate(gazeArr, clicksArr, url){
   await delay(500);
   window.location.href = url;
 }
-
-// (B) 합본 한 파일 저장 후 이동 (자동 다운로드 제한 환경용)
+// (B) 합본 저장 후 이동
 async function saveCombinedThenNavigate(gazeArr, clicksArr, url){
   const ts = tsForFile();
   downloadJson(`gaze_clicks_at_submit_${ts}.json`, { gaze: gazeArr, clicks: clicksArr });
   await delay(650);
   window.location.href = url;
 }
-
-// ✅ Save&Play와 완전히 동일한 파일명으로 저장한 뒤 이동 (제출용)
+// Save&Play와 동일 파일명으로 저장 후 이동
 async function saveExactlyLikeSaveAndPlayThenNavigate(gazeArr, clicksArr, url){
   await downloadJsonAsync('gaze.json',  gazeArr);
   await delay(300);
@@ -359,7 +380,7 @@ async function saveExactlyLikeSaveAndPlayThenNavigate(gazeArr, clicksArr, url){
   window.location.href = url;
 }
 
-// ===== Save & Play(수동 저장) =====
+// ===== Save & Play =====
 function saveGazeData(){
   isRecording=false;
   clickDataArray = dedupToggle(clickDataArray);
@@ -379,13 +400,11 @@ function saveGazeData(){
   if (saveDataButton){ saveDataButton.disabled=true; saveDataButton.textContent='Saved & Playing'; }
 }
 
-// ===== 제출 처리 (정답일 때만 저장 / 전체 배열 저장 / Save&Play와 같은 파일명) =====
+// ===== 제출 처리 =====
 async function onSubmit(){
-  // 클릭은 토글/중복 정리만
   const cleaned = dedupToggle(clickDataArray.slice());
   const EFFECTIVE_R_N = GAZE_R_N * 1.15;
 
-  // ✅ 통과 여부 판단 (기존 규칙)
   const passed = cleaned.some(c =>
     (ANSWER||[]).some(a => distN(c.xn, c.yn, Number(a.xn), Number(a.yn)) <= EFFECTIVE_R_N) &&
     dwellNearClick(c, gazeDataArray, EFFECTIVE_R_N, GAZE_WIN_BEFORE_MS, GAZE_WIN_AFTER_MS, GAZE_DWELL_MS) &&
@@ -393,15 +412,13 @@ async function onSubmit(){
   );
 
   if (passed) {
-    // ✅ 정답일 때만 저장 + 이동
     if (DOWNLOAD_COMBINED_ONLY) {
       await saveCombinedThenNavigate(gazeDataArray, cleaned, SUCCESS_URL);
     } else {
       await saveExactlyLikeSaveAndPlayThenNavigate(gazeDataArray, cleaned, SUCCESS_URL);
     }
   } else {
-    // ❌ 오답: 저장하지 않음
-    await fullReset();
+    await fullReset(); // 오답은 저장 없이 리셋
   }
 }
 
@@ -438,7 +455,7 @@ function startPlayback(){
 
     clearCanvas();
     for (const g of shownTrail) drawDotNorm(g.xn,g.yn,8,'rgba(255,0,0,0.5)');
-    for (const c of shownClicks) drawCrossNorm(c.xn,c.yn,'blue',6,2);
+    for (const c of shownClicks) drawCrossNorm(c.xn,c.yn,'blue',6,2); // 재생 표시만 십자가
 
     playbackRaf=requestAnimationFrame(render);
   };
@@ -517,7 +534,7 @@ async function fullReset(){
   ensureRightDock();
 }
 
-// ===== 업로드 처리 =====
+// ===== 업로드 처리(선택) =====
 async function loadJsonFilesFromInput(files){
   uploadedGaze=null; uploadedClicks=null;
 
@@ -657,8 +674,10 @@ function startPlaybackCustom(gArr,cArr){
   calibrationButton.disabled=true;
 
   saveDataButton=document.getElementById('saveDataButton');
-  saveDataButton.textContent='Save & Play';
-  saveDataButton.addEventListener('click', saveGazeData);
+  if (saveDataButton){
+    saveDataButton.textContent='Save & Play';
+    saveDataButton.addEventListener('click', saveGazeData);
+  }
 
   jsonUploader     = document.getElementById('jsonUploader');
   uploadButton     = document.getElementById('uploadButton');
@@ -667,67 +686,67 @@ function startPlaybackCustom(gArr,cArr){
   uploadName       = document.getElementById('uploadName');
 
   if (uploadButton){
-  uploadButton.style.display='none';
-  uploadButton.addEventListener('click', ()=> jsonUploader?.click());
-}
-if (jsonUploader){
-  jsonUploader.addEventListener('change', (e)=> loadJsonFilesFromInput(e.target.files));
-}
-if (drawButton){
-  drawButton.style.display='none';
-  drawButton.disabled=true;
-  drawButton.addEventListener('click', startDrawPlayback);
-}
-if (cancelDrawButton){
-  cancelDrawButton.style.display='none';
-  cancelDrawButton.disabled=true;
-  cancelDrawButton.addEventListener('click', cancelDraw);
-}
-if (uploadName) uploadName.style.display='none';
-
-submitButton=document.getElementById('submitButton');
-if (submitButton){
-  placeSubmitInline();
-  submitButton.style.display='none';
-  submitButton.addEventListener('click', async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try { await onSubmit(); } catch (err) { console.error(err); }
-  });
-}
-
-resetButton=document.getElementById('resetButton');
-if (resetButton){
-  placeResetInline();
-  resetButton.style.display='none';
-  resetButton.addEventListener('click', fullReset);
-}
-
-eyeTracker = new EasySeeSo();
-await eyeTracker.init(
-  licenseKey,
-  async () => {
-    console.log("✅ SeeSo 초기화 성공");
-    await eyeTracker.startTracking(onGaze, () => {});
-    isTracking = true;
-    eyeTracker.showImage();
-    calibrationButton.disabled = false;
-    sizeCanvasToWindow();
-  },
-  () => {
-    console.log("❌ SeeSo 초기화 실패 (즉시 이동)");
-    window.location.href = CAMERA_ERROR_URL;
+    uploadButton.style.display='none';
+    uploadButton.addEventListener('click', ()=> jsonUploader?.click());
   }
-);
-
-// ✅ 5초 타임아웃: 여전히 버튼이 disabled면 카메라 없음으로 간주
-setTimeout(() => {
-  if (calibrationButton.disabled) {
-    console.warn("⏳ 카메라 응답 없음 → 에러 페이지 이동");
-    window.location.href = CAMERA_ERROR_URL;
+  if (jsonUploader){
+    jsonUploader.addEventListener('change', (e)=> loadJsonFilesFromInput(e.target.files));
   }
-}, 5000);
+  if (drawButton){
+    drawButton.style.display='none';
+    drawButton.disabled=true;
+    drawButton.addEventListener('click', startDrawPlayback);
+  }
+  if (cancelDrawButton){
+    cancelDrawButton.style.display='none';
+    cancelDrawButton.disabled=true;
+    cancelDrawButton.addEventListener('click', cancelDraw);
+  }
+  if (uploadName) uploadName.style.display='none';
 
-window.addEventListener('resize', sizeCanvasToWindow);
-sizeCanvasToWindow();
+  submitButton=document.getElementById('submitButton');
+  if (submitButton){
+    placeSubmitInline();
+    submitButton.style.display='none'; // 초기 숨김(의도)
+    submitButton.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try { await onSubmit(); } catch (err) { console.error(err); }
+    });
+  }
+
+  resetButton=document.getElementById('resetButton');
+  if (resetButton){
+    placeResetInline();
+    resetButton.style.display='none'; // 초기 숨김(의도)
+    resetButton.addEventListener('click', fullReset);
+  }
+
+  eyeTracker = new EasySeeSo();
+  await eyeTracker.init(
+    licenseKey,
+    async () => {
+      console.log("✅ SeeSo 초기화 성공");
+      await eyeTracker.startTracking(onGaze, () => {});
+      isTracking = true;
+      eyeTracker.showImage();
+      calibrationButton.disabled = false;
+      sizeCanvasToWindow();
+    },
+    () => {
+      console.log("❌ SeeSo 초기화 실패 (즉시 이동)");
+      window.location.href = CAMERA_ERROR_URL;
+    }
+  );
+
+  // 5초 타임아웃: 여전히 버튼이 disabled면 카메라 없음으로 간주
+  setTimeout(() => {
+    if (calibrationButton.disabled) {
+      console.warn("⏳ 카메라 응답 없음 → 에러 페이지 이동");
+      window.location.href = CAMERA_ERROR_URL;
+    }
+  }, 5000);
+
+  window.addEventListener('resize', sizeCanvasToWindow);
+  sizeCanvasToWindow();
 })();

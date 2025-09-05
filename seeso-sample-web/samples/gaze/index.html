@@ -1,8 +1,6 @@
 <!-- C: samples/gaze/index.html -->
-
-<!doctype html> 
-<html class="no-js" lang="">
-
+<!doctype html>
+<html class="no-js" lang="ko">
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta charset="utf-8">
@@ -27,11 +25,22 @@
 
   <div class="container" style="text-align: center; margin-top: 20px;">
     <button id="calibrationButton" style="padding: 10px 20px; font-size: 16px;">Start Calibration</button>
-    <button id="saveDataButton" style="padding: 10px 20px; font-size: 16px; margin-left: 10px; display: none;">Save Gaze Data</button>
-    <button id="playDataButton" style="padding: 10px 20px; font-size: 16px; margin-left: 10px; display: none;">Play Gaze Data</button>
+
+    <!-- 우하단 도크: [파일명][파일 선택][그리기][그리기 취소][Save & Play] -->
+    <input type="file" id="jsonUploader" accept=".json" multiple style="display:none;" />
+    <button id="uploadButton"      style="padding:10px 20px; font-size:16px; display:none;">파일 선택</button>
+    <button id="drawButton"        style="padding:10px 20px; font-size:16px; display:none;">그리기</button>
+    <button id="cancelDrawButton"  style="padding:10px 20px; font-size:16px; display:none;">그리기 취소</button>
+    <span   id="uploadName"        style="display:none;"></span>
+
+    <button id="saveDataButton" style="padding: 10px 20px; font-size: 16px; margin-left: 10px; display: none;">Save &amp; Play</button>
+    <button id="ptlayDataButon" style="padding: 10px 20px; font-size: 16px; margin-left: 10px; display: none;">Play Gaze Data</button>
+
+    <!-- 제출/다시하기는 영상 아래 인라인 -->
+    <button id="submitButton" style="position:fixed;right:24px;bottom:24px;z-index:10001">제출</button>
+    <button id="resetButton"  style="position:fixed;right:120px;bottom:24px;z-index:10001">다시하기</button>
   </div>
 
-  <script  src="./index.js"></script>
+  <script src="./index.js"></script>
 </body>
-
 </html>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html class="no-js" lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>No-Camera Video CAPTCHA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="/css/main.css" />
+  <style>
+    /* 버튼 깜빡임 방지: JS가 보이기 전까지 숨김 */
+    .hidden-init { display: none !important; }
+    /* 비디오는 main.css가 제어하지만, 첫 로딩때 보이도록 JS가 display:block으로 바꿔줌 */
+  </style>
+</head>
+<body>
+  <div class="video-container">
+    <div class="overlay-text" id="overlayText">로딩중..</div>
+
+    <!-- main.css 규칙 유지(width:auto;height:60vh;object-fit:contain) -->
+    <video id="myVideo" loop autoplay muted playsinline controls width="640" height="360">
+      브라우저가 video 태그를 지원하지 않습니다.
+    </video>
+  </div>
+
+  <!-- 시선 미사용: output 하나만 -->
+  <canvas id="output" style="position: fixed;"></canvas>
+
+  <div class="container" style="text-align:center; margin-top:20px;">
+    <!-- 처음엔 숨김, 비디오 로드 후 JS에서 노출 -->
+    <button id="submitButton" class="hidden-init">제출</button>
+    <button id="resetButton"  class="hidden-init">다시하기</button>
+  </div>
+
+  <script src="alt-login.js" defer></script>
+</body>
+</html>
