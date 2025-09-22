@@ -9,123 +9,6 @@ const IS_LOCAL =
   location.hostname.endsWith('.local') ||
   location.protocol === 'file:';
 
-/* ===== API ORIGIN 자동 선택 ===== */
-// 필요 시 index.html 등에서 window.__API_ORIGIN 으로 강제 지정 가능
-const API_ORIGIN = (() => {
-  if (typeof window !== 'undefined' && window.__API_ORIGIN) return window.__API_ORIGIN;
-
-  const { protocol, hostname } = location;
-
-  // 로컬/파일 실행
-  const isLocalHost =
-    ['localhost', '127.0.0.1'].includes(hostname) ||
-    hostname.endsWith('.local') ||
-    protocol === 'file:';
-
-  if (isLocalHost) return 'http://localhost:3000';
-
-  // 배포: 도메인 기준으로 API 서브도메인 사용
-  if (hostname.endsWith('peachprmoise.co.kr')) {
-    return 'https://api.peachprmoise.co.kr';
-  }
-
-  // 그 외: 현재 오리진 사용(리버스 프록시 등)
-  return `${protocol}//${hostname}`;
-})();
-
-// path를 안전하게 붙여주는 헬퍼
-const API = (p) => `${API_ORIGIN}${p.startsWith('/') ? p : `/${p}`}`;
-
-/* ===== reCAPTCHA v3 (브리지 우선) ===== */
-const RECAPTCHA_DEV_SITE_KEY  = '6LekpcwrAAAAAHWGYmTJVRfXnPo-KxBVCexjG9M2';
-const RECAPTCHA_PROD_SITE_KEY = '6LcspMwrAAAAAP5C_hIutqsKG3sLqNDKY9ZL67vU';
-const RECAPTCHA_SITE_KEY =
-  (typeof window !== 'undefined' && window.__RECAPTCHA_SITE_KEY)
-    ? window.__RECAPTCHA_SITE_KEY
-    : (IS_LOCAL ? RECAPTCHA_DEV_SITE_KEY : RECAPTCHA_PROD_SITE_KEY);
-
-// 3A) 브리지 iframe 보장
-let __bridge;
-function ensureRecaptchaBridge() {
-  return new Promise((resolve, reject) => {
-    if (__bridge && __bridge.contentWindow) return resolve(__bridge);
-    const f = document.createElement('iframe');
-    f.id = 'recaptchaBridge';
-    f.src = `/recaptcha-bridge.html?sitekey=${encodeURIComponent(RECAPTCHA_SITE_KEY)}`;
-    f.style.display = 'none';
-    f.onload = () => resolve(f);
-    f.onerror = () => reject(new Error('bridge-load-failed'));
-    document.body.appendChild(f);
-    __bridge = f;
-  });
-}
-
-// 3B) 브리지로 토큰 발급
-async function getRecaptchaViaBridge(action) {
-  const frame = await ensureRecaptchaBridge();
-  const win = frame.contentWindow;
-  const cid = Math.random().toString(36).slice(2);
-
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      window.removeEventListener('message', onMsg);
-      resolve(null); // 타임아웃 → null
-    }, 4000);
-
-    function onMsg(ev) {
-      if (ev.source !== win || ev.origin !== location.origin) return;
-      const d = ev.data || {};
-      if (d.type !== 'recaptcha-token' || d.cid !== cid) return;
-      clearTimeout(timer);
-      window.removeEventListener('message', onMsg);
-      resolve(d.token || null);
-    }
-    window.addEventListener('message', onMsg);
-    win.postMessage({ type: 'recaptcha-exec', action, cid }, location.origin);
-  });
-}
-
-// 3C) (예비) 직접 로더 — 브리지 실패 시 폴백
-let __recaptchaLoading;
-async function ensureRecaptchaDirect() {
-  if (window.grecaptcha?.execute) return true;
-  if (!__recaptchaLoading) {
-    __recaptchaLoading = new Promise((resolve) => {
-      const s = document.createElement('script');
-      s.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
-      s.async = true;
-      s.onload = () => {
-        try { window.grecaptcha.ready(() => resolve(true)); }
-        catch { resolve(!!window.grecaptcha?.execute); }
-      };
-      s.onerror = () => resolve(false);
-      document.head.appendChild(s);
-    });
-  }
-  return await __recaptchaLoading;
-}
-
-// 3D) 최종 API: 브리지 → 실패시 직접
-async function getRecaptchaToken(action) {
-  try {
-    const t = await getRecaptchaViaBridge(action);
-    if (t) return t;
-  } catch {}
-  const ok = await ensureRecaptchaDirect();
-  if (!ok || !window.grecaptcha?.execute) return null;
-  try { return await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action }); }
-  catch { return null; }
-}
-
-// 3E) fetch에 자동 주입
-async function fetchWithRecaptcha(url, options = {}, action = 'captcha_fetch') {
-  const headers = new Headers(options.headers || {});
-  const token = await getRecaptchaToken(action);
-  if (token) headers.set('X-Recaptcha-Token', token);
-  return fetch(url, { ...options, headers });
-}
-
-
 /* ===== SeeSo 라이선스 키 ===== */
 const SEESO_DEV_KEY  = 'dev_hhc570sz5quc3kk3wvpuvbm2zznc0wow8d5nej6v'; // dev
 const SEESO_PROD_KEY = 'prod_muvxi2s8hct25hkzl989rrspxju8fb1lzdhzmoxx'; // prod
@@ -164,9 +47,35 @@ const ENTRY_INNER_R_N    = GAZE_R_N / 2;
 /* 다운로드 동작 옵션 */
 const DOWNLOAD_COMBINED_ONLY = false;
 
-/* ===== 정답/문항 상태 ===== */
-let ANSWER = [];          // [{xn,yn,t?}, ...]
-let CURRENT_ID = null;    // 현재 문항 id
+/* ===== 정답 ===== */
+// /video-data 의 answer가 배열/중첩배열/객체 혼합이어도 {xn,yn,t?} 배열로 평탄화
+function normalizeAnswer(ans) {
+  const pts = [];
+  (function walk(x) {
+    if (!x) return;
+    if (Array.isArray(x)) {
+      x.forEach(walk);
+    } else if (typeof x === 'object') {
+      const xn = Number(x?.xn);
+      const yn = Number(x?.yn);
+      const t  = Number(x?.t);
+      if (!Number.isNaN(xn) && !Number.isNaN(yn)) {
+        pts.push({ xn, yn, t: Number.isNaN(t) ? null : t });
+      }
+    }
+  })(ans);
+  return dedupByRadius(pts, 0.02); // 가까운 중복 제거(필요 시 반경 조절)
+}
+function dedupByRadius(arr, rN = 0.02) {
+  const out = [];
+  for (const p of arr) {
+    const dup = out.find(q => distN(p.xn, p.yn, q.xn, q.yn) <= rN);
+    if (!dup) out.push(p);
+  }
+  return out;
+}
+
+let ANSWER = [];  // [{xn,yn,t?}, ...] 로 유지
 
 /* ===== 상태 ===== */
 let isCalibrationMode = false;
@@ -324,7 +233,7 @@ function onCalibrationFinished(){
   if (uploadButton)      uploadButton.style.display='inline-block';
   if (drawButton)        drawButton.style.display='inline-block';
   if (cancelDrawButton)  cancelDrawButton.style.display='inline-block';
-  if (uploadName)        uploadName.style.display=(uploadedGaze?.length||uploadedClicks?.length)? 'inline-block':'none';
+  if (uploadName)        uploadName.style.display=(uploadedGaze?.length||uploadedClicks?.length)?'inline-block':'none';
 
   isDrawingMode=false;
   refreshDockStates();
@@ -406,8 +315,15 @@ function findNearestClickIndex(xn,yn,rN){
   return bestIdx;
 }
 
-/* ===== 저장 전 토글/중복 정리 함수 제거됨 ===== */
-// (요청대로 dedupToggle 완전 삭제)
+/* ===== 저장 전 토글/중복 정리 ===== */
+function dedupToggle(arr,rN=0.015,winMs=700){
+  const out=[];
+  for (const c of arr){
+    const i=out.findIndex(o=>Math.abs(o.t-c.t)<=winMs && Math.hypot(o.xn-c.xn,o.yn-c.yn)<=rN);
+    if (i>=0) out.splice(i,1); else out.push(c);
+  }
+  return out;
+}
 
 /* ===== Gaze 판정 유틸 ===== */
 function dwellNearClick(click, gaze, rN=GAZE_R_N, before=GAZE_WIN_BEFORE_MS, after=GAZE_WIN_AFTER_MS, need=GAZE_DWELL_MS){
@@ -516,8 +432,8 @@ async function saveExactlyLikeSaveAndPlayThenNavigate(gazeArr, clicksArr, url){
 /* ===== Save & Play ===== */
 function saveGazeData(){
   isRecording=false;
+  clickDataArray = dedupToggle(clickDataArray);
 
-  // 🔥 dedup 제거: 클릭을 있는 그대로 저장
   const gazeBlob=new Blob([JSON.stringify(gazeDataArray)],{type:'application/json'});
   const a1=document.createElement('a'); a1.href=URL.createObjectURL(gazeBlob); a1.download='gaze.json'; a1.click();
 
@@ -533,77 +449,29 @@ function saveGazeData(){
   if (saveDataButton){ saveDataButton.disabled=true; saveDataButton.textContent='Saved & Playing'; }
 }
 
-/* ===== 제출 처리 (서버 엄격 판정 사용) ===== */
-function nearAnswer(c, A, rN){
+/* ===== 제출 처리 ===== */
+function nearAnswer(c, A, rN){ // 좌표만 사용(시간 제한을 두려면 여기서 t 비교 추가)
   return (A||[]).some(a => distN(c.xn, c.yn, Number(a.xn), Number(a.yn)) <= rN);
 }
 
 async function onSubmit(){
-  if (!CURRENT_ID) {
-    console.warn('문항 ID가 없습니다. 다시 시도합니다.');
-    await fullReset();
-    return;
-  }
+  const cleaned = dedupToggle(clickDataArray.slice());
+  const EFFECTIVE_R_N = rEff(); // 확대된 반경 사용
 
-  // 중복 제출 방지
-  const prevDisabled = submitButton?.disabled;
-  if (submitButton) submitButton.disabled = true;
+  const passed = cleaned.some(c =>
+    nearAnswer(c, ANSWER, EFFECTIVE_R_N) &&
+    dwellNearClick(c, gazeDataArray, EFFECTIVE_R_N, GAZE_WIN_BEFORE_MS, GAZE_WIN_AFTER_MS, GAZE_DWELL_MS) &&
+    entryRuleRecentIn(c, gazeDataArray, EFFECTIVE_R_N/2, ENTRY_WINDOW_MS)
+  );
 
-  try{
-    // 서버에 그대로 전송할 페이로드
-    const payload = {
-      id: CURRENT_ID,
-      clicks: clickDataArray.slice(),     // dedup 없이 그대로
-      gaze:   gazeDataArray.slice(),      // t/tv 포함 그대로
-    };
-
-    const res = await fetchWithRecaptcha(
-      API('/submit'),
-      {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify(payload),
-      },
-      'captcha_submit'
-    );
-
-    if (res.ok) {
-      // ✅ 서버 통과 → 저장 후 성공 페이지
-      if (DOWNLOAD_COMBINED_ONLY) {
-        await saveCombinedThenNavigate(gazeDataArray, payload.clicks, SUCCESS_URL);
-      } else {
-        await saveExactlyLikeSaveAndPlayThenNavigate(gazeDataArray, payload.clicks, SUCCESS_URL);
-      }
-      return;
+  if (passed) {
+    if (DOWNLOAD_COMBINED_ONLY) {
+      await saveCombinedThenNavigate(gazeDataArray, cleaned, SUCCESS_URL);
+    } else {
+      await saveExactlyLikeSaveAndPlayThenNavigate(gazeDataArray, cleaned, SUCCESS_URL);
     }
-
-    // 409: 애매 점수(retry) 또는 오답(wrong) → 다시 풀기
-    if (res.status === 409) {
-      let msg = '정답 확인이 필요합니다. 다시 한 번 진행해 주세요.';
-      try {
-        const j = await res.json();
-        if (j?.error === 'recaptcha_retry') msg = '사람 확인 점수가 애매합니다. 다시 한번 진행해 주세요.';
-        if (j?.error === 'wrong')          msg = '오답입니다. 다시 한번 시도해 주세요.';
-      } catch {}
-      showSecurityOverlay('retry', msg, { buttonText:'다시 시도', onClick: () => { hideSecurityOverlay(); fullReset(); } });
-      return;
-    }
-
-    // 403: 차단
-    if (res.status === 403) {
-      let msg = '보안상 요청이 차단되었습니다. 잠시 후 다시 시도하세요.';
-      try { const j = await res.json(); if (j?.error === 'recaptcha_blocked') msg = '사람 확인 점수가 낮아 차단되었습니다. 잠시 후 다시 시도하세요.'; } catch {}
-      showSecurityOverlay('blocked', msg, { buttonText:'다시 시도', cooldownMs: 8000, onClick: () => { hideSecurityOverlay(); fullReset(); } });
-      return;
-    }
-
-    // 기타
-    showSecurityOverlay('error', '일시적인 오류가 발생했습니다. 다시 시도해 주세요.', { buttonText:'다시 시도', onClick: () => { hideSecurityOverlay(); fullReset(); } });
-  } catch (e) {
-    console.error('❌ 제출 실패:', e);
-    showSecurityOverlay('error', '네트워크 오류로 제출하지 못했습니다.', { buttonText:'다시 시도', onClick: () => { hideSecurityOverlay(); fullReset(); } });
-  } finally {
-    if (submitButton) submitButton.disabled = prevDisabled ?? false;
+  } else {
+    await fullReset(); // 오답은 저장 없이 리셋
   }
 }
 
@@ -652,73 +520,6 @@ function startPlayback(){
 /* ===== 유틸: 새 세션 리셋 ===== */
 function resetRecording(){ gazeDataArray=[]; clickDataArray=[]; lastVideoTimeMs=0; clearCanvas(); }
 
-/* === 보안 오버레이 도우미 === */
-function showSecurityOverlay(kind, message, opts = {}) {
-  hideSecurityOverlay();
-  const wrap = document.createElement('div');
-  wrap.id = 'secOverlay';
-  Object.assign(wrap.style, {
-    position:'fixed', inset:'0', background:'rgba(0,0,0,0.6)',
-    display:'flex', alignItems:'center', justifyContent:'center', zIndex:'10004'
-  });
-
-  const card = document.createElement('div');
-  Object.assign(card.style, {
-    width:'min(520px, 92vw)', background:'#fff', borderRadius:'16px',
-    padding:'24px', boxShadow:'0 10px 30px rgba(0,0,0,0.25)', textAlign:'center'
-  });
-
-  const h = document.createElement('div');
-  h.textContent =
-    kind==='retry'   ? '다시 한번 확인할게요' :
-    kind==='blocked' ? '요청이 차단되었습니다' :
-    '문제를 불러오지 못했습니다';
-  h.style.fontSize='18px'; h.style.fontWeight='700'; h.style.marginBottom='10px';
-
-  const p = document.createElement('div');
-  p.textContent = message || '';
-  p.style.fontSize='14px'; p.style.color='#444'; p.style.marginBottom='16px';
-
-  const btn = document.createElement('button');
-  btn.textContent = opts.buttonText || '확인';
-  Object.assign(btn.style, {
-    padding:'10px 16px', borderRadius:'10px', border:'0', cursor:'pointer',
-    background:'#1990ff', color:'#fff', fontWeight:'600'
-  });
-
-  let cooldownTimer = null;
-  if (opts.cooldownMs) {
-    btn.disabled = true;
-    const end = Date.now() + opts.cooldownMs;
-    const tick = () => {
-      const left = Math.max(0, Math.ceil((end - Date.now())/1000));
-      btn.textContent = `${opts.buttonText || '다시 시도'} (${left}s)`;
-      if (left <= 0) {
-        btn.disabled = false;
-        btn.textContent = opts.buttonText || '다시 시도';
-        clearInterval(cooldownTimer);
-      }
-    };
-    tick();
-    cooldownTimer = setInterval(tick, 500);
-  }
-
-  btn.addEventListener('click', () => {
-    if (cooldownTimer) clearInterval(cooldownTimer);
-    opts.onClick?.();
-  });
-
-  card.appendChild(h); card.appendChild(p); card.appendChild(btn);
-  wrap.appendChild(card);
-  document.body.appendChild(wrap);
-
-  setActionButtonsVisible(false);
-}
-function hideSecurityOverlay(){
-  const el = document.getElementById('secOverlay');
-  if (el && el.parentNode) el.parentNode.removeChild(el);
-}
-
 /* === “그리기 취소” */
 async function cancelDraw(){
   if (playbackRaf){ cancelAnimationFrame(playbackRaf); playbackRaf=null; }
@@ -755,42 +556,18 @@ async function fullReset(){
   const video=document.getElementById('myVideo');
 
   try{
-    // 👉 디버그: fetch 전에 v3 토큰 실제 발급되는지 확인
-    const t = await getRecaptchaToken('captcha_fetch');
-    console.log('[v3:init] token?', t ? t.slice(0,12)+'…' : null);
-    // v3 토큰과 함께 호출
-    const res = await fetchWithRecaptcha(API('/video-data'), { method:'GET' }, 'captcha_fetch');
+    const res=await fetch('http://localhost:3000/video-data');
+    const data=await res.json();
 
-    // ✅ 점수 통과: 정상 진행
-    if (res.ok) {
-      const data=await res.json();
-      CURRENT_ID = data.id || null;
-      ANSWER = normalizeAnswer(data.answer);
-      video.src=API(`/video/${data.id}?ts=${Date.now()}`);
+    ANSWER = normalizeAnswer(data.answer);
+    video.src=`http://localhost:3000/video/${data.id}?ts=${Date.now()}`;
 
-      const overlay=document.getElementById('overlayText');
-      overlay.textContent=data.question;
+    const overlay=document.getElementById('overlayText');
+    overlay.textContent=data.question;
 
-      placeSubmitInline(); placeResetInline(); setActionButtonsVisible(true);
-      hideSecurityOverlay();
-    } else if (res.status === 409) {
-      // ❗ 애매: 다시 풀기 유도
-      const msg = (await res.json().catch(()=>({})))?.message || '사람 확인이 애매합니다. 문제를 다시 불러올게요.';
-      showSecurityOverlay('retry', msg, { buttonText: '다시 시도', onClick: () => { hideSecurityOverlay(); fullReset(); } });
-      return;
-    } else if (res.status === 403) {
-      // ⛔ 차단: 쿨다운 후 재시도
-      const msg = (await res.json().catch(()=>({})))?.message || '보안상 요청이 차단되었습니다. 잠시 후 다시 시도하세요.';
-      showSecurityOverlay('blocked', msg, { buttonText: '다시 시도', cooldownMs: 8000, onClick: () => { hideSecurityOverlay(); fullReset(); } });
-      return;
-    } else {
-      showSecurityOverlay('error', '일시적인 오류가 발생했습니다. 다시 시도해 주세요.', { buttonText: '다시 시도', onClick: () => { hideSecurityOverlay(); fullReset(); } });
-      return;
-    }
+    placeSubmitInline(); placeResetInline(); setActionButtonsVisible(true);
   }catch(e){
-    console.error('❌ /video-data 재호출 실패:', e);
-    showSecurityOverlay('error', '네트워크 오류로 문제를 불러오지 못했습니다.', { buttonText: '다시 시도', onClick: () => { hideSecurityOverlay(); fullReset(); } });
-    return;
+    console.error('❌ /video-data 재호출 실패', e);
   }
 
   if (saveDataButton){
@@ -909,59 +686,41 @@ function startPlaybackCustom(gArr,cArr){
 /* ===== 초기화 ===== */
 (async ()=>{
   try{
-    // 최초 로딩에서도 v3 토큰과 함께
-    const res = await fetchWithRecaptcha(API('/video-data'), { method:'GET' }, 'captcha_fetch');
+    const res=await fetch('http://localhost:3000/video-data');
+    const data=await res.json();
 
-    if (res.ok) {
-      const data=await res.json();
+    // ✅ 정답을 평탄화해서 어떤 구조라도 좌표 배열로 사용
+    ANSWER = normalizeAnswer(data.answer);
 
-      CURRENT_ID = data.id || null;
+    const video=document.getElementById('myVideo');
 
-      // ✅ 정답을 평탄화해서 어떤 구조라도 좌표 배열로 사용
-      ANSWER = normalizeAnswer(data.answer);
+    video.addEventListener('loadeddata', ()=>{ placeSubmitInline(); placeResetInline(); });
 
-      const video=document.getElementById('myVideo');
+    video.addEventListener('playing', async ()=>{
+      videoStarted=true;
+      if (eyeTracker && !isTracking){
+        try{ await eyeTracker.startTracking(onGaze, ()=>{}); isTracking=true; }
+        catch(e){ console.error('❌ startTracking 실패:', e); }
+      }
+    });
 
-      video.addEventListener('loadeddata', ()=>{ placeSubmitInline(); placeResetInline(); });
+    video.addEventListener('pause', async ()=>{
+      if (eyeTracker && isTracking){
+        await eyeTracker.stopTracking();
+        isTracking=false;
+      }
+    });
 
-      video.addEventListener('playing', async ()=>{
-        videoStarted=true;
-        if (eyeTracker && !isTracking){
-          try{ await eyeTracker.startTracking(onGaze, ()=>{}); isTracking=true; }
-          catch(e){ console.error('❌ startTracking 실패:', e); }
-        }
-      });
+    // 절대경로 + 캐시깨기
+    video.src=`http://localhost:3000/video/${data.id}?ts=${Date.now()}`;
 
-      video.addEventListener('pause', async ()=>{
-        if (eyeTracker && isTracking){
-          await eyeTracker.stopTracking();
-          isTracking=false;
-        }
-      });
+    const overlay=document.getElementById('overlayText');
+    overlay.textContent=data.question;
 
-      // 절대경로 + 캐시깨기
-      video.src = API(`/video/${data.id}?ts=${Date.now()}`);
+    addCanvasClickListener(video);
 
-      const overlay=document.getElementById('overlayText');
-      overlay.textContent=data.question;
-
-      addCanvasClickListener(video);
-      hideSecurityOverlay();
-    } else if (res.status === 409) {
-      const msg = (await res.json().catch(()=>({})))?.message || '사람 확인이 애매합니다. 문제를 다시 불러올게요.';
-      showSecurityOverlay('retry', msg, { buttonText: '다시 시도', onClick: () => { hideSecurityOverlay(); fullReset(); } });
-      return;
-    } else if (res.status === 403) {
-      const msg = (await res.json().catch(()=>({})))?.message || '보안상 요청이 차단되었습니다. 잠시 후 다시 시도하세요.';
-      showSecurityOverlay('blocked', msg, { buttonText: '다시 시도', cooldownMs: 8000, onClick: () => { hideSecurityOverlay(); fullReset(); } });
-      return;
-    } else {
-      showSecurityOverlay('error', '일시적인 오류가 발생했습니다. 다시 시도해 주세요.', { buttonText: '다시 시도', onClick: () => { hideSecurityOverlay(); fullReset(); } });
-      return;
-    }
   }catch(e){
     console.error('❌ DB에서 영상/텍스트 로딩 실패', e);
-    showSecurityOverlay('error', '네트워크 오류로 문제를 불러오지 못했습니다.', { buttonText: '다시 시도', onClick: () => { hideSecurityOverlay(); fullReset(); } });
   }
 
   // DOM 바인딩
@@ -1050,31 +809,3 @@ function startPlaybackCustom(gArr,cArr){
   window.addEventListener('resize', sizeCanvasToWindow);
   sizeCanvasToWindow();
 })();
-
-/* ===== 정답 ===== */
-// /video-data 의 answer가 배열/중첩배열/객체 혼합이어도 {xn,yn,t?} 배열로 평탄화
-function normalizeAnswer(ans) {
-  const pts = [];
-  (function walk(x) {
-    if (!x) return;
-    if (Array.isArray(x)) {
-      x.forEach(walk);
-    } else if (typeof x === 'object') {
-      const xn = Number(x?.xn);
-      const yn = Number(x?.yn);
-      const t  = Number(x?.t);
-      if (!Number.isNaN(xn) && !Number.isNaN(yn)) {
-        pts.push({ xn, yn, t: Number.isNaN(t) ? null : t });
-      }
-    }
-  })(ans);
-  return dedupByRadius(pts, 0.02); // 가까운 중복 제거(정답 포인트만)
-}
-function dedupByRadius(arr, rN = 0.02) {
-  const out = [];
-  for (const p of arr) {
-    const dup = out.find(q => distN(p.xn, p.yn, q.xn, q.yn) <= rN);
-    if (!dup) out.push(p);
-  }
-  return out;
-}
