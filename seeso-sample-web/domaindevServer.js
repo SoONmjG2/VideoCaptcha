@@ -33,7 +33,7 @@ app.use(express.static(DIST, {
 }));
 
 // /api → 백엔드 프록시 (같은 오리진처럼 보여 CORS 불필요)
-app.use('/api', createProxyMiddleware({
+app.use('/', createProxyMiddleware({
   target: API_TARGET,
   changeOrigin: true,
   xfwd: true,
