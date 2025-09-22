@@ -1,12 +1,24 @@
-// backend/server.js -> 배포용 
+// backend/server.js — 배포용 (랜덤/중복방지 풀 + Range 프록시 + 스트림 안전 가드)
+
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const axios = require('axios');
 
 // 로컬에서는 .env 사용, Render에서는 ENV 탭 사용
 try { require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); } catch (_) {}
+
+const PORT       = process.env.PORT || 3000;
+const MONGO_URI  = process.env.MONGO_URI;
+const DB_NAME    = process.env.DB_NAME || 'test';
+const COLLECTION = process.env.COLLECTION || 'gazeData';
+
+// 필수 환경변수 체크 (없으면 503 방지용 조기 종료)
+if (!MONGO_URI) {
+  console.error('❌ MONGO_URI is not set');
+  process.exit(1);
+}
 
 const app = express();
 
@@ -28,21 +40,63 @@ app.use(cors({
 app.use(express.json());
 
 /* ---------- Mongo ---------- */
-const mongoUri = process.env.MONGO_URI;
-const client = new MongoClient(mongoUri);
+const client = new MongoClient(MONGO_URI, { ignoreUndefined: true });
 let collection;
+
+/* ---------- 랜덤 풀 (중복 방지) ---------- */
+let randomPool = []; // _id 문자열 배열
+let round = 0;
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+async function reloadPool() {
+  const docs = await collection.find(
+    { videoUrl: { $exists: true, $ne: null } },
+    { projection: { _id: 1 } }
+  ).toArray();
+
+  randomPool = docs.map(d => String(d._id));
+  shuffle(randomPool);
+  round++;
+  console.log(`🔁 랜덤 풀 리셋 (라운드 ${round}, 총 ${randomPool.length}개)`);
+}
+
+function toMongoId(idStr) {
+  return ObjectId.isValid(idStr) ? new ObjectId(idStr) : idStr;
+}
 
 /* ---------- Healthcheck ---------- */
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
-/* ---------- API: 영상 메타 ---------- */
+/* ---------- API: 영상 메타 (중복 없이 랜덤) ---------- */
+// 새로고침 시 항상 새 랜덤(풀에서 pop), 모두 소진되면 자동 초기화
 app.get('/video-data', async (_req, res) => {
   try {
-    const doc = await collection.findOne({ videoUrl: { $exists: true } });
-    if (!doc?.videoUrl) return res.status(404).json({ error: 'No videoUrl' });
+    if (randomPool.length === 0) await reloadPool();
+    if (randomPool.length === 0) {
+      // 컬렉션에 영상이 없을 때
+      return res.status(404).json({ error: 'EMPTY_POOL' });
+    }
+
+    const pickId = randomPool.pop();
+    const doc = await collection.findOne({ _id: toMongoId(pickId) });
+    if (!doc?.videoUrl) return res.status(404).json({ error: 'NOT_FOUND' });
+
     res.json({
-      videoUrl: doc.videoUrl,
+      id: String(doc._id),
       question: doc.question || '영상 질문입니다.',
+      answer: Array.isArray(doc.answer) ? doc.answer : [],
+      // 프론트는 이 경로로 <video src> 세팅하면 됨
+      videoPath: `/video/${doc._id}`,        // 권장: path param
+      // 하위호환: `/video?id=${doc._id}` 도 동작함
+      round,
+      remaining: randomPool.length,
     });
   } catch (err) {
     console.error('🔥 /video-data error:', err.message);
@@ -50,39 +104,75 @@ app.get('/video-data', async (_req, res) => {
   }
 });
 
-/* ---------- API: 영상 프록시 (Range 지원) ---------- */
+/* ---------- 공통: 비디오 프록시 (Range 지원 + 스트림 안전 가드) ---------- */
+async function proxyVideoById(req, res, id) {
+  const doc = await collection.findOne({ _id: toMongoId(id) });
+  const videoUrl = doc?.videoUrl;
+  if (!videoUrl) return res.status(404).send('NOT_FOUND');
+
+  const forwardHeaders = {};
+  ['range', 'if-range'].forEach((h) => {
+    if (req.headers[h]) forwardHeaders[h] = req.headers[h];
+  });
+
+  const upstream = await axios.get(videoUrl, {
+    responseType: 'stream',
+    headers: forwardHeaders,
+    maxRedirects: 5,
+    validateStatus: () => true,  // 원본 상태코드 그대로
+    timeout: 30_000,
+  });
+
+  res.status(upstream.status);
+  ['content-type','content-length','accept-ranges','content-range','etag','last-modified','cache-control']
+    .forEach((h) => {
+      const v = upstream.headers[h];
+      if (v) res.setHeader(h, v);
+    });
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+  const src = upstream.data;
+
+  // ✅ 끊김/에러 안전 가드 (탭 닫힘/네트워크 끊김/시크바 난사 등)
+  const abort = (err) => {
+    if (err && !['EPIPE','ECONNRESET'].includes(err.code || '')) {
+      console.warn('🔴 stream aborted:', err.message || err);
+    }
+    try { src.destroy(); } catch {}
+    try {
+      if (!res.headersSent) res.status(502).end('upstream error');
+      else res.end();
+    } catch {}
+  };
+  src.on('error', abort);   // 원본 스트림 에러
+  res.on('close', abort);   // 클라이언트가 창/탭 닫음
+  req.on('aborted', abort); // 요청 취소
+
+  src.pipe(res);
+}
+
+/* ---------- API: 영상 프록시 ---------- */
+// 권장: /video/:id
+app.get('/video/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).send('id required');
+    await proxyVideoById(req, res, id);
+  } catch (err) {
+    console.error('🔥 /video/:id proxy error:', err.message);
+    if (!res.headersSent) res.status(500).send('proxy error');
+  }
+});
+
+// 하위호환: /video?id=<id>
 app.get('/video', async (req, res) => {
   try {
-    const doc = await collection.findOne({ videoUrl: { $exists: true } });
-    const videoUrl = doc?.videoUrl;
-    if (!videoUrl) return res.status(404).send('no video');
-
-    // 시크/재생바 이동을 위한 핵심 헤더 전달
-    const forwardHeaders = {};
-    ['range', 'if-range'].forEach((h) => {
-      if (req.headers[h]) forwardHeaders[h] = req.headers[h];
-    });
-
-    const upstream = await axios.get(videoUrl, {
-      responseType: 'stream',
-      headers: forwardHeaders,
-      maxRedirects: 5,
-      validateStatus: () => true, // 원본 상태코드 그대로
-    });
-
-    res.status(upstream.status);
-    // 필요한 헤더만 복제
-    ['content-type','content-length','accept-ranges','content-range','etag','last-modified','cache-control']
-      .forEach((h) => {
-        const v = upstream.headers[h];
-        if (v) res.setHeader(h, v);
-      });
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-
-    upstream.data.pipe(res);
+    const id = req.query.id;
+    if (!id) return res.status(400).send('id query required (e.g., /video?id=...)');
+    await proxyVideoById(req, res, id);
   } catch (err) {
-    console.error('🔥 /video proxy error:', err.message);
-    res.status(500).send('proxy error');
+    console.error('🔥 /video?id proxy error:', err.message);
+    if (!res.headersSent) res.status(500).send('proxy error');
   }
 });
 
@@ -103,8 +193,6 @@ app.get('/', (_req, res) => {
     h1 { margin:0 0 12px; font-size:28px; }
     p { margin:8px 0 16px; color:var(--muted); }
     code { background:#111827; padding:2px 6px; border-radius:6px; }
-    ul { margin:8px 0 0 20px; line-height:1.8; }
-    a { color:var(--accent); text-decoration:none; }
     .grid { display:grid; grid-template-columns:1fr; gap:16px; margin-top:16px; }
     .api { background:#0b1220; border:1px solid #1f2937; border-radius:12px; padding:16px; }
     .kbd { display:inline-block; padding:2px 8px; border:1px solid #334155; border-radius:6px; background:#0b1220; color:var(--text); }
@@ -120,20 +208,20 @@ app.get('/', (_req, res) => {
         <div class="api">
           <h3>/healthz</h3>
           <p>서버 상태 체크</p>
-          <code>GET https://api.peachprmoise.co.kr/healthz</code>
+          <code>GET /healthz</code>
         </div>
         <div class="api">
           <h3>/video-data</h3>
-          <p>영상 메타(JSON) 반환</p>
-          <code>GET https://api.peachprmoise.co.kr/video-data</code>
+          <p>중복 없는 랜덤으로 메타(JSON) 반환</p>
+          <code>GET /video-data</code>
         </div>
         <div class="api">
-          <h3>/video</h3>
-          <p>Firebase Storage 프록시 (시크/재생바 이동 가능)</p>
-          <code>GET https://api.peachprmoise.co.kr/video</code>
+          <h3>/video/:id</h3>
+          <p>Firebase Storage 프록시 (Range/시크 지원)</p>
+          <code>GET /video/&lt;ObjectId&gt;</code>
         </div>
       </div>
-      <p style="margin-top:16px">프론트(별도 도메인)에서 <span class="kbd">&lt;video src="/video"&gt;</span>를 쓰려면 CORS allowlist에 도메인을 추가하세요.</p>
+      <p style="margin-top:16px">프론트에서 <span class="kbd">&lt;video src="/video/&lt;id&gt;"&gt;</span> 형태로 쓰면 됩니다. (하위호환: <span class="kbd">/video?id=&lt;id&gt;</span>)</p>
     </div>
   </div>
 </body>
@@ -141,19 +229,32 @@ app.get('/', (_req, res) => {
   res.type('html').send(html);
 });
 
+/* ---------- 전역 에러 가드 ---------- */
+process.on('unhandledRejection', (err) => {
+  console.error('🔴 UnhandledRejection:', err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('🔴 UncaughtException:', err);
+});
+
 /* ---------- 서버 시작 ---------- */
-async function start() {
+(async () => {
   try {
     await client.connect();
     console.log('✅ MongoDB connected!');
-    const db = client.db('test');
-    collection = db.collection('gazeData');
+    const db = client.db(DB_NAME);
+    collection = db.collection(COLLECTION);
 
-    const PORT = process.env.PORT || 3000; // Render는 PORT 필요
-    app.listen(PORT, () => console.log(`🚀 Listening on :${PORT}`));
+    await reloadPool(); // 부팅 시 1회 로딩
+
+    const server = app.listen(PORT, '0.0.0.0', () =>
+      console.log(`🚀 Listening on :${PORT}`)
+    );
+    // Render/프록시 안정화를 위한 타임아웃 튜닝
+    server.keepAliveTimeout = 65_000;  // 65s
+    server.headersTimeout   = 66_000;  // > keepAliveTimeout
   } catch (err) {
     console.error('❌ MongoDB connection error:', err);
     process.exit(1);
   }
-}
-start();
+})();
