@@ -18,12 +18,15 @@ const ENTRY_HTML = [
   path.join(PUBLIC_DIR, 'login.html'),
   path.join(PUBLIC_DIR, 'destination.html'),
   path.join(PUBLIC_DIR, 'camera-error.html'),
-  path.join(PUBLIC_DIR, 'alt-login.html'),
+  path.join(PUBLIC_DIR, 'nocamera_index.html'),
 
   // samples (gaze)
   path.join(SAMPLES_DIR, 'gaze', 'index.html'),
-  path.join(SAMPLES_DIR, 'gaze', 'user_index.html'),   
+  path.join(SAMPLES_DIR, 'gaze', 'user_index.html'), 
+  path.join(SAMPLES_DIR, 'gaze', 'noseeso_index.html'),     
   path.join(SAMPLES_DIR, 'gaze', 'success', 'success.html'),
+  path.join(SAMPLES_DIR, 'gaze', 'nocamera_success.html'),
+  
 ];
 
 // COOP/COEP (SharedArrayBuffer)

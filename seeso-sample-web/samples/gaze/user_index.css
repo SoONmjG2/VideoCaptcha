@@ -106,33 +106,33 @@
 
   /* 버튼 색상 */
   #submitButton {
-    background: rgba(0,122,255,0.15);
+    background: #007aff;
   }
   #submitButton:hover {
-    background: rgba(0,122,255,0.25);
+    background: #005ecb;
   }
   #submitButton:active {
-    background: rgba(0,122,255,0.35);
+    background: #004ba0;
   }
 
   #resetButton {
-    background: rgba(142,142,147,0.15);
+    background:  #007aff;
   }
   #resetButton:hover {
-    background: rgba(142,142,147,0.25);
+    background: #005ecb;
   }
   #resetButton:active {
-    background: rgba(142,142,147,0.35);
+    background: #004ba0;
   }
 
   #calibrationButton {
-    background: rgba(0,122,255,0.15);
+    background:  #007aff;
   }
   #calibrationButton:hover {
-    background: rgba(0,122,255,0.25);
+    background: #005ecb;
   }
   #calibrationButton:active {
-    background: rgba(0,122,255,0.35);
+    background: #004ba0;
   }
 
   @keyframes fadeIn {

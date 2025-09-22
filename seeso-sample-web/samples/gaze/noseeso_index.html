@@ -1,0 +1,28 @@
+<!doctype html>
+<html class="no-js" lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>클릭 기반 CAPTCHA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="../../css/noseeso_index.css" />
+</head>
+<body>
+  <div class="video-container">
+    <!-- 안내 문구 -->
+    <div class="overlay-text" id="overlayText">로딩중...</div>
+
+    <!-- 비디오 -->
+    <video id="myVideo" width="640" height="360" playsinline muted autoplay loop>
+      브라우저가 video 태그를 지원하지 않습니다.
+    </video>
+  </div>
+
+  <!-- 버튼들 (제출/다시하기만) -->
+  <div class="container" style="text-align: center; margin-top: 20px;">
+    <button id="submitButton" style="position:fixed;right:24px;bottom:24px;z-index:10001">제출</button>
+    <button id="resetButton" style="position:fixed;right:120px;bottom:24px;z-index:10001">다시하기</button>
+  </div>
+
+  <script src="./noseeso_index.js"></script>
+</body>
+</html>

@@ -39,16 +39,40 @@ app.use('/api', createProxyMiddleware({
   xfwd: true,
 }));
 
+// ==============================
 // 엔트리 라우팅
+// ==============================
 app.get('/', (_req, res) => {
   res.sendFile(path.join(DIST, 'public', 'login.html'));
 });
 app.get('/destination', (_req, res) => {
   res.sendFile(path.join(DIST, 'public', 'destination.html'));
 });
+app.get('/camera-error', (_req, res) => {
+  res.sendFile(path.join(DIST, 'public', 'camera-error.html'));
+});
+app.get('/nocamera', (_req, res) => {
+  res.sendFile(path.join(DIST, 'public', 'nocamera_index.html'));
+});
+
+// gaze 관련
 app.get('/gaze', (_req, res) => {
   res.sendFile(path.join(DIST, 'samples', 'gaze', 'index.html'));
 });
+app.get('/gaze/user', (_req, res) => {
+  res.sendFile(path.join(DIST, 'samples', 'gaze', 'user_index.html'));
+});
+app.get('/gaze/noseeso', (_req, res) => {
+  res.sendFile(path.join(DIST, 'samples', 'gaze', 'noseeso_index.html'));
+});
+app.get('/gaze/success', (_req, res) => {
+  res.sendFile(path.join(DIST, 'samples', 'gaze', 'success', 'success.html'));
+});
+app.get('/gaze/nocamera-success', (_req, res) => {
+  res.sendFile(path.join(DIST, 'samples', 'gaze', 'nocamera_success.html'));
+});
+
+// ==============================
 
 app.listen(PORT, () => {
   console.log(`✅ Frontend server on :${PORT}`);
