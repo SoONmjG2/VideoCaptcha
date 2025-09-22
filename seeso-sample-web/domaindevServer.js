@@ -48,7 +48,7 @@ app.get('/', (_req, res) => {
 app.get('/destination', (_req, res) => {
   res.sendFile(path.join(DIST, 'public', 'destination.html'));
 });
-app.get('/camera-error', (_req, res) => {
+app.get('/camera-error.html', (_req, res) => {
   res.sendFile(path.join(DIST, 'public', 'camera-error.html'));
 });
 app.get('/nocamera', (_req, res) => {
