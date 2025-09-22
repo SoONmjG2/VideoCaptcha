@@ -5,7 +5,14 @@ const Bundler = require('parcel-bundler'); // v1
 const entryFiles = [
   path.join(__dirname, 'public', 'login.html'),
   path.join(__dirname, 'public', 'destination.html'),
-  path.join(__dirname, 'samples', 'gaze', 'index.html')
+  path.join(__dirname, 'public', 'camera-error.html'),
+  path.join(__dirname, 'public', 'nocamera_index.html'),
+
+  path.join(__dirname, 'samples', 'gaze', 'index.html'),
+  path.join(__dirname, 'samples', 'gaze', 'user_index.html'),
+  path.join(__dirname, 'samples', 'gaze', 'noseeso_index.html'),
+  path.join(__dirname, 'samples', 'gaze', 'nocamera_success.html'),
+  path.join(__dirname, 'samples', 'success', 'gaze', 'success.html'),
 ];
 
 const options = {
