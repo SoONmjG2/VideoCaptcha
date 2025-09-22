@@ -1,5 +1,10 @@
+// samples/gaze/noseeso_index.js
+// ✅ 클릭 전용 버전 (시선 추적 제거)
+// ✅ 로컬/배포 환경에 맞춰 API 경로 자동 분기
+
+/* ===== 환경 분기 ===== */
 const IS_LOCAL =
-  ['localhost','127.0.0.1'].includes(location.hostname) ||
+  ['localhost', '127.0.0.1'].includes(location.hostname) ||
   location.hostname.endsWith('.local') ||
   location.protocol === 'file:';
 
@@ -10,18 +15,23 @@ const API_ORIGIN = (() => {
   if (hostname.endsWith('peachprmoise.co.kr')) return 'https://api.peachprmoise.co.kr';
   return `${protocol}//${hostname}`;
 })();
-const API = (p) => `${API_ORIGIN}${p.startsWith('/') ? p : `/${p}`}`;
+
+// ✅ 로컬일 땐 /api 안 붙이고, 배포일 땐 /api 붙이도록
+const API = (p) => {
+  if (IS_LOCAL) return `${API_ORIGIN}${p.startsWith('/') ? p : `/${p}`}`;
+  return `${API_ORIGIN}/api${p.startsWith('/') ? p : `/${p}`}`;
+};
 
 /* ===== 기본 설정 ===== */
 const SUCCESS_URL = 'success/success.html';
-const CAMERA_ERROR_URL = null; // 사용 안 함
+const CAMERA_ERROR_URL = null;
 
 /* ===== 정규화 유틸 ===== */
 const PREC = 4;
 const roundN = v => Number(v.toFixed(PREC));
 const distN = (x1,y1,x2,y2) => Math.hypot(x1-x2, y1-y2);
 
-/* ===== 정답 반경(클릭만) ===== */
+/* ===== 정답 반경 ===== */
 const GAZE_R_N = 0.16;
 const GAZE_R_MULT = 1.30;
 const rEff = () => GAZE_R_N * GAZE_R_MULT;
@@ -133,7 +143,7 @@ function findNearestClickIndex(xn,yn,rN){
 
 /* ===== 제출 ===== */
 function nearAnswer(c, A, rN){
-  return (A||[]).some(a => distN(c.xn,c.yn, Number(a.xn), Number(a.yn)) <= rN);
+  return (A||[]).some(a => distN(c.xn, c.yn, Number(a.xn), Number(a.yn)) <= rN);
 }
 async function onSubmit(){
   const EFFECTIVE_R_N = rEff();
