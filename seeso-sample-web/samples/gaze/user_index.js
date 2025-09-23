@@ -1,6 +1,6 @@
-// user_index.js
+// user_index.js 
 import 'regenerator-runtime/runtime';
-import EasySeeSo from 'seeso/easy-seeso';
+import EasySeeSo from 'seeso/easy-seeso'
 
 /* ===== 환경 분기 ===== */
 // localhost/127.0.0.1 또는 *.local, file:// 은 로컬로 간주
@@ -8,6 +8,45 @@ const IS_LOCAL =
   ['localhost', '127.0.0.1'].includes(location.hostname) ||
   location.hostname.endsWith('.local') ||
   location.protocol === 'file:';
+
+/* ===== (추가) API ROOT (배포는 /api 프록시) =====
+   필요하면 HTML에서 window.__API_ORIGIN 으로 강제 지정 가능 */
+const API_ROOT = (() => {
+  if (typeof window !== 'undefined' && window.__API_ORIGIN) return window.__API_ORIGIN;
+  return IS_LOCAL ? 'http://localhost:3000' : '/api';
+})();
+
+/* ===== (추가) fetch helper: JSON + 429 재시도 ===== */
+async function fetchJsonWithRetry(url, { retries = 4, baseDelay = 800, signal } = {}) {
+  let attempt = 0;
+  for (;;) {
+    let res;
+    try {
+      res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+    } catch (e) {
+      if (attempt >= retries) throw e;
+      await new Promise(r => setTimeout(r, baseDelay * (2 ** attempt) + Math.random()*300));
+      attempt++; continue;
+    }
+    if (res.status === 429) {
+      if (attempt >= retries) {
+        const txt = await res.text().catch(()=> '');
+        throw new Error(`429 Too Many Requests: ${txt || ''}`);
+      }
+      const ra = res.headers.get('Retry-After');
+      const waitMs = ra ? (isNaN(+ra) ? 2000 : (+ra * 1000)) : baseDelay * (2 ** attempt);
+      await new Promise(r => setTimeout(r, waitMs + Math.random()*300));
+      attempt++; continue;
+    }
+    if (!res.ok) {
+      const txt = await res.text().catch(()=> '');
+      throw new Error(`${res.status} ${res.statusText || ''} ${txt}`.trim());
+    }
+    const text = await res.text();
+    try { return JSON.parse(text); }
+    catch { throw new Error(`Invalid JSON from ${url}: ${text.slice(0,120)}`); }
+  }
+}
 
 /* ===== SeeSo 라이선스 키 ===== */
 const SEESO_DEV_KEY  = 'dev_hhc570sz5quc3kk3wvpuvbm2zznc0wow8d5nej6v'; // dev
@@ -20,8 +59,7 @@ const dotMinSize = 5;
 
 /* 라우팅 */
 const SUCCESS_URL = 'success/success.html';
-// null이면 카메라 에러 시 이동하지 않고 콘솔만
-const CAMERA_ERROR_URL = null;
+const CAMERA_ERROR_URL = '/camera-error.html';
 
 /* ===== 정규화/수학 유틸 ===== */
 const PREC = 4;
@@ -107,7 +145,6 @@ function getVideoRect() {
   if (!v) return null;
   return v.getBoundingClientRect(); // CSS px 기준
 }
-// viewport(clientX/Y) → 비디오 내부 정규화(0~1) / 바깥이면 null
 function viewportToVideoN(x, y) {
   const r = getVideoRect();
   if (!r) return null;
@@ -116,7 +153,6 @@ function viewportToVideoN(x, y) {
   if (xn < 0 || xn > 1 || yn < 0 || yn > 1) return null;
   return { xn, yn };
 }
-// 비디오 정규화(0~1) → viewport px (드로잉용)
 function videoNToViewport(xn, yn) {
   const r = getVideoRect();
   if (!r) return { x: 0, y: 0 };
@@ -128,12 +164,10 @@ function drawDotRGBA(x,y,r,rgba){
   const ctx=getCtx(); ctx.fillStyle=rgba;
   ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
 }
-// 비디오 정규화 좌표를 비디오 위 픽셀로 환산해서 그림
 function drawDotNorm(xn,yn,r,rgba){
   const {x,y}=videoNToViewport(xn,yn);
   drawDotRGBA(x,y,r,rgba);
 }
-// (재생용) 십자가
 function drawClickCross(x,y,color='blue',size=6,lineWidth=2){
   const ctx=getCtx();
   ctx.beginPath();
@@ -146,10 +180,8 @@ function drawCrossNorm(xn,yn,color='blue',size=6,lineWidth=2){
 }
 
 /* ===== “하나만” 보이는 시선점 ===== */
-// 화면 어디든 최근 시선(뷰포트, 시각화용)
-let lastViewportGaze = null;
-// 현재 프레임 시선이 비디오 내부인지 여부(중복 점 방지용)
-let isGazeInVideo = false;
+let lastViewportGaze = null; // 화면(뷰포트) 좌표(시각화용)
+let isGazeInVideo = false;   // 현재 프레임 시선이 비디오 내부인지
 
 function drawDotViewport(x, y, r, rgba) { drawDotRGBA(x, y, r, rgba); }
 
@@ -267,24 +299,22 @@ function renderRecordingOverlay(){
   clearCanvas();
 
   if (!isGazeInVideo) {
-    // 🔥 비디오 밖이면: 뷰포트 점만 (하나)
     if (lastViewportGaze) {
       drawDotViewport(lastViewportGaze.x, lastViewportGaze.y, 8, 'rgba(255,0,0,0.9)');
     }
   } else {
-    // 🔥 비디오 안이면: 비디오 정규화 점만 (하나)
     if (gazeDataArray.length){
       const last=gazeDataArray[gazeDataArray.length-1];
       drawDotNorm(last.xn,last.yn,8,'rgba(255,0,0,1)');
     }
   }
-
-  // 클릭표시(비디오 기준)
   for (const c of clickDataArray) drawDotNorm(c.xn,c.yn,6,'rgba(0,0,255,0.5)');
 }
 
 /* ===== 시선 콜백 ===== */
+let gazeSeen = false;
 function onGaze(gazeInfo){
+  gazeSeen = true; // ✅ 워치독 통과
   if (isCalibrationMode || !videoStarted || !isRecording) return;
 
   // 화면(뷰포트) 좌표는 항상 기록 → 시각화용
@@ -292,12 +322,12 @@ function onGaze(gazeInfo){
 
   // 비디오 내부 정규화 (판정/저장용)
   const n = viewportToVideoN(gazeInfo.x, gazeInfo.y);
-  isGazeInVideo = !!n;               // 🔥 현재 프레임이 비디오 안인지 기록
+  isGazeInVideo = !!n;
 
   const video = document.getElementById('myVideo');
   const tv = Math.round((video?.currentTime || 0) * 1000);
 
-  if (n) { // 비디오 안일 때만 판정 데이터로 저장
+  if (n) {
     const xn = roundN(clamp01(n.xn));
     const yn = roundN(clamp01(n.yn));
     gazeDataArray.push({ t: Date.now(), tv, xn, yn });
@@ -316,7 +346,6 @@ function addCanvasClickListener(video){
 
     const n = viewportToVideoN(e.clientX, e.clientY);
     if (!n) {
-      // 비디오 밖 클릭은 시각화만 하고 기록/판정엔 사용하지 않음
       lastViewportGaze = { x: e.clientX, y: e.clientY, t: Date.now() };
       renderRecordingOverlay();
       return;
@@ -532,7 +561,7 @@ function startPlayback(){
 
     clearCanvas();
     for (const g of shownTrail) drawDotNorm(g.xn,g.yn,8,'rgba(255,0,0,0.5)');
-    for (const c of shownClicks) drawCrossNorm(c.xn,c.yn,'blue',6,2); // 재생 시엔 십자가
+    for (const c of shownClicks) drawCrossNorm(c.xn,c.yn,'blue',6,2);
 
     playbackRaf=requestAnimationFrame(render);
   };
@@ -580,11 +609,14 @@ async function fullReset(){
   const video=document.getElementById('myVideo');
 
   try{
-    const res=await fetch('http://localhost:3000/video-data');
-    const data=await res.json();
+    /* ▼▼▼ 교체: API_ROOT + 재시도 + videoPath 지원 ▼▼▼ */
+    const data = await fetchJsonWithRetry(`${API_ROOT}/video-data`);
 
     ANSWER = normalizeAnswer(data.answer);
-    video.src=`http://localhost:3000/video/${data.id}?ts=${Date.now()}`;
+
+    const srcPath = data.videoPath ? data.videoPath.replace(/^\/+/, '') : `video/${data.id}`;
+    video.src = `${API_ROOT}/${srcPath}?ts=${Date.now()}`;
+    /* ▲▲▲ 교체 끝 ▲▲▲ */
 
     const overlay=document.getElementById('overlayText');
     overlay.textContent=data.question;
@@ -710,8 +742,8 @@ function startPlaybackCustom(gArr,cArr){
 /* ===== 초기화 ===== */
 (async ()=>{
   try{
-    const res=await fetch('http://localhost:3000/video-data');
-    const data=await res.json();
+    /* ▼▼▼ 교체: API_ROOT + 재시도 + videoPath 지원 ▼▼▼ */
+    const data = await fetchJsonWithRetry(`${API_ROOT}/video-data`);
 
     ANSWER = normalizeAnswer(data.answer);
 
@@ -734,13 +766,15 @@ function startPlaybackCustom(gArr,cArr){
       }
     });
 
-    // 절대경로 + 캐시깨기
-    video.src=`http://localhost:3000/video/${data.id}?ts=${Date.now()}`;
+    // 절대경로 + 캐시깨기 (videoPath 우선)
+    const srcPath = data.videoPath ? data.videoPath.replace(/^\/+/, '') : `video/${data.id}`;
+    video.src = `${API_ROOT}/${srcPath}?ts=${Date.now()}`;
 
     const overlay=document.getElementById('overlayText');
     overlay.textContent=data.question;
 
     addCanvasClickListener(video);
+    /* ▲▲▲ 교체 끝 ▲▲▲ */
 
   }catch(e){
     console.error('❌ DB에서 영상/텍스트 로딩 실패', e);
@@ -750,6 +784,8 @@ function startPlaybackCustom(gArr,cArr){
   calibrationButton=document.getElementById('calibrationButton');
   calibrationButton.addEventListener('click', onClickCalibrationBtn);
   calibrationButton.disabled=true;
+  // ✅ 초기엔 버튼 숨김 (성공해서 트래킹 시작된 뒤에만 보여줄 것)
+  calibrationButton.style.display='none';
 
   saveDataButton=document.getElementById('saveDataButton');
   if (saveDataButton){
@@ -785,7 +821,7 @@ function startPlaybackCustom(gArr,cArr){
   submitButton=document.getElementById('submitButton');
   if (submitButton){
     placeSubmitInline();
-    submitButton.style.display='none'; // 초기 숨김(의도)
+    submitButton.style.display='none';
     submitButton.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -796,34 +832,64 @@ function startPlaybackCustom(gArr,cArr){
   resetButton=document.getElementById('resetButton');
   if (resetButton){
     placeResetInline();
-    resetButton.style.display='none'; // 초기 숨김(의도)
+    resetButton.style.display='none';
     resetButton.addEventListener('click', fullReset);
   }
 
   eyeTracker = new EasySeeSo();
+
+  // 5초 타임아웃: 카메라 권한 묻는 중이거나 응답이 없으면 에러 페이지로
+  let camFailTimer = setTimeout(() => {
+    console.warn("⏳ 카메라 응답 없음(5초). 에러 페이지로 이동");
+    if (CAMERA_ERROR_URL) window.location.href = CAMERA_ERROR_URL;
+  }, 5000);
+
+  // gaze 워치독
+  const GAZE_WATCHDOG_MS = 4000;
+  let gazeWatchdogStarted = false;
+  function startGazeWatchdog() {
+    if (gazeWatchdogStarted) return;
+    gazeWatchdogStarted = true;
+    setTimeout(() => {
+      if (!gazeSeen) {
+        console.warn('👀 onGaze 미도착. 카메라/권한 문제로 간주 → 에러 페이지 이동');
+        if (CAMERA_ERROR_URL) window.location.href = CAMERA_ERROR_URL;
+      }
+    }, GAZE_WATCHDOG_MS);
+  }
+
   await eyeTracker.init(
     licenseKey,
     async () => {
       console.log("✅ SeeSo 초기화 성공");
-      await eyeTracker.startTracking(onGaze, () => {});
+      clearTimeout(camFailTimer);
+
+      try {
+        await eyeTracker.startTracking(onGaze, () => {});
+      } catch (e) {
+        console.error('❌ startTracking 실패(권한/디바이스 없음 가능):', e);
+        if (CAMERA_ERROR_URL) return (window.location.href = CAMERA_ERROR_URL);
+      }
+
       isTracking = true;
       eyeTracker.showImage();
+
+      // ✅ 트래킹 성공 시에만 캘리브레이션 버튼 활성+표시
       calibrationButton.disabled = false;
+      calibrationButton.classList?.remove('hidden-init');
+      calibrationButton.style.display = 'inline-block';
+
       sizeCanvasToWindow();
+
+      // gaze 워치독 가동
+      startGazeWatchdog();
     },
     () => {
       console.log("❌ SeeSo 초기화 실패");
+      clearTimeout(camFailTimer);
       if (CAMERA_ERROR_URL) window.location.href = CAMERA_ERROR_URL;
     }
   );
-
-  // 5초 타임아웃: 카메라 없음 처리
-  setTimeout(() => {
-    if (calibrationButton.disabled) {
-      console.warn("⏳ 카메라 응답 없음");
-      if (CAMERA_ERROR_URL) window.location.href = CAMERA_ERROR_URL;
-    }
-  }, 5000);
 
   // 리사이즈/스크롤/풀스크린 변화 시 갱신
   const rerender = () => { sizeCanvasToWindow(); renderRecordingOverlay(); };
