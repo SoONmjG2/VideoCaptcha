@@ -42,6 +42,15 @@ app.use('/beeps', express.static(path.join(DIST, 'public', 'beeps'), {
   },
 }));
 
+// ★ 추가: /samples/gaze/beeps 도 동일하게 서비스 (페이지 상대경로 대비)
+app.use('/samples/gaze/beeps', express.static(path.join(DIST, 'public', 'beeps'), {
+  setHeaders(res, fp) {
+    if (fp.endsWith('.json')) res.setHeader('Cache-Control', 'no-store');
+    else res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  },
+}));
+
 // /api 프록시
 app.use('/api', createProxyMiddleware({
   target: API_TARGET,
