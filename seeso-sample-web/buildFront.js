@@ -12,7 +12,7 @@ const entryFiles = [
   path.join(__dirname, 'samples', 'gaze', 'user_index.html'),
   path.join(__dirname, 'samples', 'gaze', 'noseeso_index.html'),
   path.join(__dirname, 'samples', 'gaze', 'nocamera_success.html'),
-  path.join(__dirname, 'samples', 'success', 'gaze', 'success.html'),
+  path.join(__dirname, 'samples', 'gaze', 'success', 'success.html'),
 ];
 
 const options = {
