@@ -1,5 +1,7 @@
 // seeso-sample-web/buildFront.js
 const path = require('path');
+const fs = require('fs');
+const fse = require('fs-extra');
 const Bundler = require('parcel-bundler'); // v1
 
 const entryFiles = [
@@ -15,8 +17,10 @@ const entryFiles = [
   path.join(__dirname, 'samples', 'gaze', 'success', 'success.html'),
 ];
 
+const outDir = path.join(__dirname, 'dist');
+
 const options = {
-  outDir: path.join(__dirname, 'dist'), // 빌드 산출물
+  outDir,
   publicUrl: '/',
   watch: false,
   cache: false,
@@ -30,5 +34,22 @@ const options = {
 (async () => {
   const bundler = new Bundler(entryFiles, options);
   await bundler.bundle();
+
+  // ★ 추가: beeps 정적 자원 복사 (Parcel이 자동으로 안 넣어줌)
+  const srcBeeps = path.join(__dirname, 'public', 'beeps');
+  const dstBeeps = path.join(outDir, 'public', 'beeps');
+  try {
+    if (fs.existsSync(srcBeeps)) {
+      await fse.ensureDir(dstBeeps);
+      await fse.copy(srcBeeps, dstBeeps, { overwrite: true });
+      console.log('📦 copied public/beeps → dist/public/beeps');
+    } else {
+      console.warn('⚠️ public/beeps not found, skip copy');
+    }
+  } catch (err) {
+    console.error('❌ copy beeps failed:', err);
+    process.exitCode = 1;
+  }
+
   console.log('✅ parcel-bundler(v1) build finished → dist/');
 })();

@@ -33,23 +33,16 @@ app.use(express.static(DIST, {
   },
 }));
 
-// ★ 추가: /beeps → /public/beeps 로 alias (정적 파일 경로 보강)
-app.use('/beeps', express.static(path.join(DIST, 'public', 'beeps'), {
+// ★ 추가: /beeps, /public/beeps → dist/public/beeps 로 alias
+const beepsStatic = express.static(path.join(DIST, 'public', 'beeps'), {
   setHeaders(res, fp) {
     if (fp.endsWith('.json')) res.setHeader('Cache-Control', 'no-store');
     else res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   },
-}));
-
-// ★ 추가: /samples/gaze/beeps 도 동일하게 서비스 (페이지 상대경로 대비)
-app.use('/samples/gaze/beeps', express.static(path.join(DIST, 'public', 'beeps'), {
-  setHeaders(res, fp) {
-    if (fp.endsWith('.json')) res.setHeader('Cache-Control', 'no-store');
-    else res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  },
-}));
+});
+app.use('/beeps', beepsStatic);
+app.use('/public/beeps', beepsStatic);
 
 // /api 프록시
 app.use('/api', createProxyMiddleware({
@@ -68,12 +61,9 @@ app.use('/api', createProxyMiddleware({
 }));
 
 /* ---------------- 단축 라우트 ---------------- */
-// 루트
 app.get('/', (_req, res) =>
   res.sendFile(path.join(DIST, 'public', 'login.html'))
 );
-
-// public
 app.get('/public/login.html', (_req, res) =>
   res.sendFile(path.join(DIST, 'public', 'login.html'))
 );
@@ -87,7 +77,7 @@ app.get('/public/nocamera_index.html', (_req, res) =>
   res.sendFile(path.join(DIST, 'public', 'nocamera_index.html'))
 );
 
-// samples (gaze) — ✅ 중복 제거 & 정확한 경로
+// samples (gaze)
 app.get('/gaze', (_req, res) =>
   res.sendFile(path.join(DIST, 'samples', 'gaze', 'index.html'))
 );
@@ -97,12 +87,11 @@ app.get('/gaze/user', (_req, res) =>
 app.get('/gaze/noseeso', (_req, res) =>
   res.sendFile(path.join(DIST, 'samples', 'gaze','noseeso_index.html'))
 );
-// 성공 페이지 — 배포에선 /success 로 이동하게 해둔 상태와 일치
 app.get('/success', (_req, res) =>
   res.sendFile(path.join(DIST, 'samples', 'gaze', 'success', 'success.html'))
 );
 
-/* -------- 편의 리디렉션(옛 경로 정리) -------- */
+/* -------- 편의 리디렉션 -------- */
 app.get(['/user_index.html', '/samples/gaze/user_index.html'], (_req, res) =>
   res.redirect(302, '/gaze/user')
 );
