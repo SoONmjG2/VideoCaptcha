@@ -9,6 +9,13 @@ const IS_LOCAL =
   location.hostname.endsWith('.local') ||
   location.protocol === 'file:';
 
+/* ===== API ROOT (배포는 /api 프록시) =====
+   필요하면 index.html 등에서 window.__API_ORIGIN 으로 강제 지정 가능 */
+const API_ROOT = (() => {
+  if (typeof window !== 'undefined' && window.__API_ORIGIN) return window.__API_ORIGIN;
+  return IS_LOCAL ? 'http://localhost:3000' : '/api';
+})();
+
 /* ===== SeeSo 라이선스 키 ===== */
 const SEESO_DEV_KEY  = 'dev_hhc570sz5quc3kk3wvpuvbm2zznc0wow8d5nej6v'; // dev
 const SEESO_PROD_KEY = 'prod_muvxi2s8hct25hkzl989rrspxju8fb1lzdhzmoxx'; // prod
@@ -18,7 +25,7 @@ const dotMaxSize = 10;
 const dotMinSize = 5;
 
 /* 라우팅 */
-const SUCCESS_URL = 'success/success.html';
+const SUCCESS_URL = IS_LOCAL ? 'success/success.html' : '/success';
 // 에러 페이지를 쓰려면 경로 지정, 아니면 null로 두면 콘솔만 찍고 이동 안함
 const CAMERA_ERROR_URL = null;
 
@@ -556,11 +563,11 @@ async function fullReset(){
   const video=document.getElementById('myVideo');
 
   try{
-    const res=await fetch('http://localhost:3000/video-data');
+    const res=await fetch(`${API_ROOT}/video-data`);
     const data=await res.json();
 
     ANSWER = normalizeAnswer(data.answer);
-    video.src=`http://localhost:3000/video/${data.id}?ts=${Date.now()}`;
+    video.src=`${API_ROOT}/video/${data.id}?ts=${Date.now()}`;
 
     const overlay=document.getElementById('overlayText');
     overlay.textContent=data.question;
@@ -636,8 +643,8 @@ function startDrawPlayback(){
   const video=document.getElementById('myVideo');
   if (video){ try{video.pause();}catch{} video.currentTime=0; video.play(); }
 
-  const gArr=Array.isArray(uploadedGaze)?uploadedGaze:[];
-  const cArr=Array.isArray(uploadedClicks)?uploadedClicks:[];
+  const gArr=Array.isArray(uploadedGaze)?uploadedGaze:[];   // 절대시간 기반
+  const cArr=Array.isArray(uploadedClicks)?uploadedClicks:[];// 영상 시간 기반
   startPlaybackCustom(gArr,cArr);
 
   refreshDockStates();
@@ -686,7 +693,7 @@ function startPlaybackCustom(gArr,cArr){
 /* ===== 초기화 ===== */
 (async ()=>{
   try{
-    const res=await fetch('http://localhost:3000/video-data');
+    const res=await fetch(`${API_ROOT}/video-data`);
     const data=await res.json();
 
     // ✅ 정답을 평탄화해서 어떤 구조라도 좌표 배열로 사용
@@ -712,7 +719,7 @@ function startPlaybackCustom(gArr,cArr){
     });
 
     // 절대경로 + 캐시깨기
-    video.src=`http://localhost:3000/video/${data.id}?ts=${Date.now()}`;
+    video.src=`${API_ROOT}/video/${data.id}?ts=${Date.now()}`;
 
     const overlay=document.getElementById('overlayText');
     overlay.textContent=data.question;
