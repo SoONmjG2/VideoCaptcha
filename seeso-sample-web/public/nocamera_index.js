@@ -26,33 +26,38 @@ let attemptCount = 0;
 const totalBeepsNeeded = 3;  // ✅ 3회 성공 시 통과
 const maxBeeps = 4;          // 음성 파일 내 총 삐음 수
 
-/* ===== (추가) beeps 경로 자동 탐지 =====
-   우선순위: window.__BEEPS_BASE → 현재 폴더/beeps → /samples/gaze/beeps → /beeps */
+/* ===== (교체) beeps 경로 자동 탐지 =====
+   우선순위: window.__BEEPS_BASE → 상대(beeps, ./beeps, 현재폴더/beeps) → /public/beeps → /samples/gaze/beeps → /beeps */
 let BEEPS_BASE = null;
 async function resolveBeepsBase() {
   if (BEEPS_BASE) return BEEPS_BASE;
 
+  const pageDir = location.pathname.replace(/[^/]+$/, ''); // 현재 문서 폴더(/public/ 등)
   const candidates = [];
+
   if (window.__BEEPS_BASE) candidates.push(window.__BEEPS_BASE);
 
-  const here = location.pathname.replace(/[^/]+$/, '');         // 현재 문서 폴더
-  candidates.push(here + 'beeps');
-  if (here.includes('/samples/gaze/')) candidates.push('/samples/gaze/beeps');
+  // 상대/현재 폴더 우선
+  candidates.push('beeps');
+  candidates.push('./beeps');
+  candidates.push(pageDir + 'beeps');
+
+  // 절대 경로 후보(배포 구조 대응)
+  candidates.push('/public/beeps');        // ← ★ 배포에서 가장 흔한 위치
+  candidates.push('/samples/gaze/beeps');
   candidates.push('/beeps');
 
-  // 중복 제거
-  const uniq = [...new Set(candidates)];
+  const uniq = [...new Set(candidates.map(b => b.replace(/\/+$/, '')))];
 
   for (const base of uniq) {
     try {
       const res = await fetch(`${base}/file_count.json`, { cache: 'no-store' });
       if (!res.ok) continue;
-      // JSON이 맞는지 확인
-      await res.clone().json();
+      await res.clone().json();            // JSON 확인
       BEEPS_BASE = base;
       return BEEPS_BASE;
-    } catch (_) {
-      // 다음 후보로
+    } catch {
+      /* 다음 후보 시도 */
     }
   }
   throw new Error('beeps 경로를 찾지 못했습니다.');
