@@ -59,7 +59,7 @@ const dotMinSize = 5;
 
 /* 라우팅 */
 const SUCCESS_URL = 'success/success.html';
-const CAMERA_ERROR_URL = '/camera-error.html';
+const CAMERA_ERROR_URL = '/public/camera-error.html';
 
 /* ===== 정규화/수학 유틸 ===== */
 const PREC = 4;
