@@ -29,6 +29,38 @@ const SUCCESS_URL = IS_LOCAL ? 'success/success.html' : '/success';
 // 에러 페이지를 쓰려면 경로 지정, 아니면 null로 두면 콘솔만 찍고 이동 안함
 const CAMERA_ERROR_URL = null;
 
+/* ===== (추가) fetch helper: JSON + 429 재시도 ===== */
+async function fetchJsonWithRetry(url, { retries = 4, baseDelay = 800, signal } = {}) {
+  let attempt = 0;
+  while (true) {
+    let res;
+    try {
+      res = await fetch(url, { signal, headers: { 'Accept': 'application/json' } });
+    } catch (e) {
+      if (attempt >= retries) throw e;
+      await new Promise(r => setTimeout(r, baseDelay * (2 ** attempt) + Math.random()*300));
+      attempt++; continue;
+    }
+    if (res.status === 429) {
+      if (attempt >= retries) {
+        const txt = await res.text().catch(()=> '');
+        throw new Error(`429 Too Many Requests: ${txt || ''}`);
+      }
+      const ra = res.headers.get('Retry-After');
+      const waitMs = ra ? (isNaN(+ra) ? 2000 : (+ra * 1000)) : baseDelay * (2 ** attempt);
+      await new Promise(r => setTimeout(r, waitMs + Math.random()*300));
+      attempt++; continue;
+    }
+    if (!res.ok) {
+      const txt = await res.text().catch(()=> '');
+      throw new Error(`${res.status} ${res.statusText || ''} ${txt}`.trim());
+    }
+    const text = await res.text();
+    try { return JSON.parse(text); }
+    catch { throw new Error(`Invalid JSON from ${url}: ${text.slice(0,120)}`); }
+  }
+}
+
 /* ===== 정규화 유틸 ===== */
 const PREC = 4;
 const roundN = v => Number(v.toFixed(PREC));
@@ -563,11 +595,13 @@ async function fullReset(){
   const video=document.getElementById('myVideo');
 
   try{
-    const res=await fetch(`${API_ROOT}/video-data`);
-    const data=await res.json();
+    /* ▼▼▼ (교체) 429 재시도 + videoPath 지원 ▼▼▼ */
+    const data = await fetchJsonWithRetry(`${API_ROOT}/video-data`);
 
     ANSWER = normalizeAnswer(data.answer);
-    video.src=`${API_ROOT}/video/${data.id}?ts=${Date.now()}`;
+    const srcPath = data.videoPath ? data.videoPath.replace(/^\/+/, '') : `video/${data.id}`;
+    video.src = `${API_ROOT}/${srcPath}?ts=${Date.now()}`;
+    /* ▲▲▲ 교체 끝 ▲▲▲ */
 
     const overlay=document.getElementById('overlayText');
     overlay.textContent=data.question;
@@ -693,9 +727,8 @@ function startPlaybackCustom(gArr,cArr){
 /* ===== 초기화 ===== */
 (async ()=>{
   try{
-    const res=await fetch(`${API_ROOT}/video-data`);
-    const data=await res.json();
-
+    /* ▼▼▼ (교체) 429 재시도 + videoPath 지원 ▼▼▼ */
+    const data = await fetchJsonWithRetry(`${API_ROOT}/video-data`);
     // ✅ 정답을 평탄화해서 어떤 구조라도 좌표 배열로 사용
     ANSWER = normalizeAnswer(data.answer);
 
@@ -718,13 +751,15 @@ function startPlaybackCustom(gArr,cArr){
       }
     });
 
-    // 절대경로 + 캐시깨기
-    video.src=`${API_ROOT}/video/${data.id}?ts=${Date.now()}`;
+    // 절대경로 + 캐시깨기 (videoPath 우선)
+    const srcPath = data.videoPath ? data.videoPath.replace(/^\/+/, '') : `video/${data.id}`;
+    video.src = `${API_ROOT}/${srcPath}?ts=${Date.now()}`;
 
     const overlay=document.getElementById('overlayText');
     overlay.textContent=data.question;
 
     addCanvasClickListener(video);
+    /* ▲▲▲ 교체 끝 ▲▲▲ */
 
   }catch(e){
     console.error('❌ DB에서 영상/텍스트 로딩 실패', e);
