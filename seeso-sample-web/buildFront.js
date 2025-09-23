@@ -35,7 +35,7 @@ const options = {
   const bundler = new Bundler(entryFiles, options);
   await bundler.bundle();
 
-  // ★ 추가: beeps 정적 자원 복사 (Parcel이 자동으로 안 넣어줌)
+  // ★ beeps 정적 자원 복사 (Parcel v1이 자동 포함 안 함)
   const srcBeeps = path.join(__dirname, 'public', 'beeps');
   const dstBeeps = path.join(outDir, 'public', 'beeps');
   try {
