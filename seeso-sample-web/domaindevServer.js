@@ -33,7 +33,7 @@ app.use(express.static(DIST, {
   },
 }));
 
-// ★ /beeps, /public/beeps → dist/public/beeps 로 alias
+// ★ 추가: /beeps, /public/beeps → dist/public/beeps 로 alias
 const beepsStatic = express.static(path.join(DIST, 'public', 'beeps'), {
   setHeaders(res, fp) {
     if (fp.endsWith('.json')) res.setHeader('Cache-Control', 'no-store');
@@ -85,7 +85,7 @@ app.get('/gaze/user', (_req, res) =>
   res.sendFile(path.join(DIST, 'samples', 'gaze', 'user_index.html'))
 );
 app.get('/gaze/noseeso', (_req, res) =>
-  res.sendFile(path.join(DIST, 'samples', 'gaze', 'noseeso_index.html'))
+  res.sendFile(path.join(DIST, 'samples', 'gaze','noseeso_index.html'))
 );
 app.get('/success', (_req, res) =>
   res.sendFile(path.join(DIST, 'samples', 'gaze', 'success', 'success.html'))
