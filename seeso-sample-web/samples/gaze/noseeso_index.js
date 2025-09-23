@@ -16,10 +16,17 @@ const API_ORIGIN = (() => {
   return `${protocol}//${hostname}`;
 })();
 
-// ✅ 로컬일 땐 /api 안 붙이고, 배포일 땐 /api 붙이도록
+/* ===== ✅ 수정: api 서브도메인일 땐 /api 프리픽스 미부착 ===== */
+// 로컬일 땐 /api 미사용, 배포일 땐
+// - API_ORIGIN이 api.* 이면 그대로 사용
+// - 그 외(동일 도메인 프록시)면 /api 붙여서 호출
 const API = (p) => {
-  if (IS_LOCAL) return `${API_ORIGIN}${p.startsWith('/') ? p : `/${p}`}`;
-  return `${API_ORIGIN}/api${p.startsWith('/') ? p : `/${p}`}`;
+  const path = p.startsWith('/') ? p : `/${p}`;
+  if (IS_LOCAL) return `${API_ORIGIN}${path}`;
+  let host;
+  try { host = new URL(API_ORIGIN).hostname; } catch { host = location.hostname; }
+  const isApiSubdomain = host === 'api.peachprmoise.co.kr' || host.startsWith('api.');
+  return `${API_ORIGIN}${isApiSubdomain ? '' : '/api'}${path}`;
 };
 
 /* ===== 기본 설정 ===== */
