@@ -26,6 +26,38 @@ const API = (p) => {
 const SUCCESS_URL = 'success/success.html';
 const CAMERA_ERROR_URL = null;
 
+/* ===== (추가) fetch helper: JSON + 429 재시도 ===== */
+async function fetchJsonWithRetry(url, { retries = 4, baseDelay = 800, signal } = {}) {
+  let attempt = 0;
+  for (;;) {
+    let res;
+    try {
+      res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+    } catch (e) {
+      if (attempt >= retries) throw e;
+      await new Promise(r => setTimeout(r, baseDelay * (2 ** attempt) + Math.random()*300));
+      attempt++; continue;
+    }
+    if (res.status === 429) {
+      if (attempt >= retries) {
+        const txt = await res.text().catch(()=> '');
+        throw new Error(`429 Too Many Requests: ${txt || ''}`);
+      }
+      const ra = res.headers.get('Retry-After');
+      const waitMs = ra ? (isNaN(+ra) ? 2000 : (+ra * 1000)) : baseDelay * (2 ** attempt);
+      await new Promise(r => setTimeout(r, waitMs + Math.random()*300));
+      attempt++; continue;
+    }
+    if (!res.ok) {
+      const txt = await res.text().catch(()=> '');
+      throw new Error(`${res.status} ${res.statusText || ''} ${txt}`.trim());
+    }
+    const text = await res.text();
+    try { return JSON.parse(text); }
+    catch { throw new Error(`Invalid JSON from ${url}: ${text.slice(0,120)}`); }
+  }
+}
+
 /* ===== 정규화 유틸 ===== */
 const PREC = 4;
 const roundN = v => Number(v.toFixed(PREC));
@@ -157,12 +189,15 @@ function resetRecording(){ clickDataArray=[]; clearCanvas(); }
 async function fullReset(){
   resetRecording();
   try{
-    const res=await fetch(API('/video-data'));
-    const data=await res.json();
+    // ▼ 교체: 429 재시도 사용
+    const data = await fetchJsonWithRetry(API('/video-data'));
+
     ANSWER = normalizeAnswer(data.answer);
     const video=document.getElementById('myVideo');
     if (video) {
-      video.src=API(`/video/${data.id}?ts=${Date.now()}`);
+      // ▼ 교체: videoPath 우선 사용
+      const srcPath = data.videoPath ? data.videoPath.replace(/^\/+/, '') : `video/${data.id}`;
+      video.src = API(`/${srcPath}?ts=${Date.now()}`);
       try { await video.play(); } catch {}
     }
     const overlay=document.getElementById('overlayText');
@@ -176,14 +211,17 @@ async function fullReset(){
   sizeCanvasToWindow();
   window.addEventListener('resize', sizeCanvasToWindow);
   try{
-    const res=await fetch(API('/video-data'));
-    const data=await res.json();
+    // ▼ 교체: 429 재시도 사용
+    const data = await fetchJsonWithRetry(API('/video-data'));
+
     ANSWER = normalizeAnswer(data.answer);
     const video=document.getElementById('myVideo');
     if (video){
       video.addEventListener('loadeddata', ()=>{ placeSubmitInline(); placeResetInline(); });
       video.addEventListener('playing', ()=>{ videoStarted=true; });
-      video.src=API(`/video/${data.id}?ts=${Date.now()}`);
+      // ▼ 교체: videoPath 우선 사용
+      const srcPath = data.videoPath ? data.videoPath.replace(/^\/+/, '') : `video/${data.id}`;
+      video.src = API(`/${srcPath}?ts=${Date.now()}`);
     }
     const overlay=document.getElementById('overlayText');
     if (overlay) overlay.textContent=data.question;
