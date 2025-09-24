@@ -16,10 +16,7 @@ const API_ORIGIN = (() => {
   return `${protocol}//${hostname}`;
 })();
 
-/* ===== ✅ 수정: api 서브도메인일 땐 /api 프리픽스 미부착 ===== */
-// 로컬일 땐 /api 미사용, 배포일 땐
-// - API_ORIGIN이 api.* 이면 그대로 사용
-// - 그 외(동일 도메인 프록시)면 /api 붙여서 호출
+/* ===== api 서브도메인일 땐 /api 프리픽스 미부착 ===== */
 const API = (p) => {
   const path = p.startsWith('/') ? p : `/${p}`;
   if (IS_LOCAL) return `${API_ORIGIN}${path}`;
@@ -33,7 +30,7 @@ const API = (p) => {
 const SUCCESS_URL = 'success/success.html';
 const CAMERA_ERROR_URL = null;
 
-/* ===== (추가) fetch helper: JSON + 429 재시도 ===== */
+/* ===== fetch helper: JSON + 429 재시도 ===== */
 async function fetchJsonWithRetry(url, { retries = 4, baseDelay = 800, signal } = {}) {
   let attempt = 0;
   for (;;) {
@@ -65,7 +62,7 @@ async function fetchJsonWithRetry(url, { retries = 4, baseDelay = 800, signal } 
   }
 }
 
-/* ===== 정규화 유틸 ===== */
+/* ===== 정규화/수학 유틸 ===== */
 const PREC = 4;
 const roundN = v => Number(v.toFixed(PREC));
 const distN = (x1,y1,x2,y2) => Math.hypot(x1-x2, y1-y2);
@@ -180,13 +177,25 @@ function findNearestClickIndex(xn,yn,rN){
   return bestIdx;
 }
 
+/* ===== 저장 전 토글/중복 정리 (index.js와 동일 정책) ===== */
+function dedupToggle(arr,rN=0.015,winMs=700){
+  const out=[];
+  for (const c of arr){
+    const i=out.findIndex(o=>Math.abs(o.t-c.t)<=winMs && Math.hypot(o.xn-c.xn,o.yn-c.yn)<=rN);
+    if (i>=0) out.splice(i,1); else out.push(c);
+  }
+  return out;
+}
+
 /* ===== 제출 ===== */
+/* ▶︎ index.js와 동일: 정답 점과의 거리만으로 클릭 정답 판정 */
 function nearAnswer(c, A, rN){
   return (A||[]).some(a => distN(c.xn, c.yn, Number(a.xn), Number(a.yn)) <= rN);
 }
 async function onSubmit(){
+  const cleaned = dedupToggle(clickDataArray.slice());
   const EFFECTIVE_R_N = rEff();
-  const passed = clickDataArray.some(c => nearAnswer(c, ANSWER, EFFECTIVE_R_N));
+  const passed = cleaned.some(c => nearAnswer(c, ANSWER, EFFECTIVE_R_N));
   if (passed) window.location.href = SUCCESS_URL;
   else await fullReset();
 }
@@ -196,13 +205,11 @@ function resetRecording(){ clickDataArray=[]; clearCanvas(); }
 async function fullReset(){
   resetRecording();
   try{
-    // ▼ 교체: 429 재시도 사용
     const data = await fetchJsonWithRetry(API('/video-data'));
 
     ANSWER = normalizeAnswer(data.answer);
     const video=document.getElementById('myVideo');
     if (video) {
-      // ▼ 교체: videoPath 우선 사용
       const srcPath = data.videoPath ? data.videoPath.replace(/^\/+/, '') : `video/${data.id}`;
       video.src = API(`/${srcPath}?ts=${Date.now()}`);
       try { await video.play(); } catch {}
@@ -218,7 +225,6 @@ async function fullReset(){
   sizeCanvasToWindow();
   window.addEventListener('resize', sizeCanvasToWindow);
   try{
-    // ▼ 교체: 429 재시도 사용
     const data = await fetchJsonWithRetry(API('/video-data'));
 
     ANSWER = normalizeAnswer(data.answer);
@@ -226,7 +232,6 @@ async function fullReset(){
     if (video){
       video.addEventListener('loadeddata', ()=>{ placeSubmitInline(); placeResetInline(); });
       video.addEventListener('playing', ()=>{ videoStarted=true; });
-      // ▼ 교체: videoPath 우선 사용
       const srcPath = data.videoPath ? data.videoPath.replace(/^\/+/, '') : `video/${data.id}`;
       video.src = API(`/${srcPath}?ts=${Date.now()}`);
     }

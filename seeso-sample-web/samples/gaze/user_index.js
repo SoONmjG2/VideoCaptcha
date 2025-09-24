@@ -1,4 +1,4 @@
-// user_index.js 
+// user_index.js
 import 'regenerator-runtime/runtime';
 import EasySeeSo from 'seeso/easy-seeso'
 
@@ -67,9 +67,9 @@ const roundN = v => Number(v.toFixed(PREC));
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const distN = (x1,y1,x2,y2) => Math.hypot(x1-x2, y1-y2);
 
-/* ===== 시선 판정 파라미터 (완화) ===== */
-const GAZE_R_N = 0.16;       // 기존 0.11 → 0.16
-const GAZE_R_MULT = 1.30;    // 제출시 반경 가중
+/* ===== 시선 판정 파라미터 ===== */
+const GAZE_R_N = 0.10;
+const GAZE_R_MULT = 1.10;    // 제출시 반경 가중
 const rEff = () => GAZE_R_N * GAZE_R_MULT;
 
 const GAZE_DWELL_MS = 140;
@@ -159,14 +159,22 @@ function videoNToViewport(xn, yn) {
   return { x: r.left + xn * r.width, y: r.top + yn * r.height };
 }
 
+/* ===== 캔버스 좌표 헬퍼 (뷰포트→캔버스) ===== */
+function getCanvasRect(){ return getCanvas().getBoundingClientRect(); }
+function vp2canvasP(px, py){
+  const r = getCanvasRect();
+  return { x: px - r.left, y: py - r.top };
+}
+
 /* ===== 드로잉 ===== */
 function drawDotRGBA(x,y,r,rgba){
   const ctx=getCtx(); ctx.fillStyle=rgba;
   ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
 }
 function drawDotNorm(xn,yn,r,rgba){
-  const {x,y}=videoNToViewport(xn,yn);
-  drawDotRGBA(x,y,r,rgba);
+  const vp = videoNToViewport(xn,yn);     // 비디오N → 뷰포트
+  const p  = vp2canvasP(vp.x, vp.y);      // 뷰포트 → 캔버스
+  drawDotRGBA(p.x, p.y, r, rgba);
 }
 function drawClickCross(x,y,color='blue',size=6,lineWidth=2){
   const ctx=getCtx();
@@ -176,14 +184,19 @@ function drawClickCross(x,y,color='blue',size=6,lineWidth=2){
   ctx.lineWidth=lineWidth; ctx.strokeStyle=color; ctx.stroke();
 }
 function drawCrossNorm(xn,yn,color='blue',size=6,lineWidth=2){
-  const {x,y}=videoNToViewport(xn,yn); drawClickCross(x,y,color,size,lineWidth);
+  const vp = videoNToViewport(xn,yn);
+  const p  = vp2canvasP(vp.x, vp.y);
+  drawClickCross(p.x, p.y, color, size, lineWidth);
 }
 
 /* ===== “하나만” 보이는 시선점 ===== */
 let lastViewportGaze = null; // 화면(뷰포트) 좌표(시각화용)
 let isGazeInVideo = false;   // 현재 프레임 시선이 비디오 내부인지
 
-function drawDotViewport(x, y, r, rgba) { drawDotRGBA(x, y, r, rgba); }
+function drawDotViewport(x, y, r, rgba) {
+  const p = vp2canvasP(x, y);
+  drawDotRGBA(p.x, p.y, r, rgba);
+}
 
 /* ===== UI helpers ===== */
 function placeSubmitInline(){
@@ -314,7 +327,7 @@ function renderRecordingOverlay(){
 /* ===== 시선 콜백 ===== */
 let gazeSeen = false;
 function onGaze(gazeInfo){
-  gazeSeen = true; // ✅ 워치독 통과
+  gazeSeen = true; // 워치독 통과
   if (isCalibrationMode || !videoStarted || !isRecording) return;
 
   // 화면(뷰포트) 좌표는 항상 기록 → 시각화용
@@ -341,6 +354,7 @@ function addCanvasClickListener(video){
   const canvas=getCanvas();
   canvas.style.pointerEvents='auto';
 
+  // 좌클릭 토글(추가/삭제)
   canvas.addEventListener('click',e=>{
     if (!isRecording) return;
 
@@ -365,7 +379,7 @@ function addCanvasClickListener(video){
 function findNearestClickIndex(xn,yn,rN){
   if (!clickDataArray.length) return -1;
   let bestIdx=-1, bestDist=rN;
-  for (let i=clickDataArray.length-1;i>=0;i--){
+  for (let i=0;i<clickDataArray.length;i++){
     const c=clickDataArray[i];
     const d=Math.hypot(c.xn-xn,c.yn-yn);
     if (d<=bestDist){ bestDist=d; bestIdx=i; }
@@ -504,6 +518,7 @@ function saveGazeData(){
 }
 
 /* ===== 제출 처리 ===== */
+/* ▶︎ index.js와 동일: 정답 점과의 거리만으로 클릭 정답 판정 */
 function nearAnswer(c, A, rN){
   return (A||[]).some(a => distN(c.xn, c.yn, Number(a.xn), Number(a.yn)) <= rN);
 }
@@ -609,14 +624,13 @@ async function fullReset(){
   const video=document.getElementById('myVideo');
 
   try{
-    /* ▼▼▼ 교체: API_ROOT + 재시도 + videoPath 지원 ▼▼▼ */
+    // API_ROOT + 재시도 + videoPath 지원
     const data = await fetchJsonWithRetry(`${API_ROOT}/video-data`);
 
     ANSWER = normalizeAnswer(data.answer);
 
     const srcPath = data.videoPath ? data.videoPath.replace(/^\/+/, '') : `video/${data.id}`;
     video.src = `${API_ROOT}/${srcPath}?ts=${Date.now()}`;
-    /* ▲▲▲ 교체 끝 ▲▲▲ */
 
     const overlay=document.getElementById('overlayText');
     overlay.textContent=data.question;
@@ -742,7 +756,7 @@ function startPlaybackCustom(gArr,cArr){
 /* ===== 초기화 ===== */
 (async ()=>{
   try{
-    /* ▼▼▼ 교체: API_ROOT + 재시도 + videoPath 지원 ▼▼▼ */
+    // API_ROOT + 재시도 + videoPath 지원
     const data = await fetchJsonWithRetry(`${API_ROOT}/video-data`);
 
     ANSWER = normalizeAnswer(data.answer);
@@ -774,8 +788,6 @@ function startPlaybackCustom(gArr,cArr){
     overlay.textContent=data.question;
 
     addCanvasClickListener(video);
-    /* ▲▲▲ 교체 끝 ▲▲▲ */
-
   }catch(e){
     console.error('❌ DB에서 영상/텍스트 로딩 실패', e);
   }
@@ -784,7 +796,7 @@ function startPlaybackCustom(gArr,cArr){
   calibrationButton=document.getElementById('calibrationButton');
   calibrationButton.addEventListener('click', onClickCalibrationBtn);
   calibrationButton.disabled=true;
-  // ✅ 초기엔 버튼 숨김 (성공해서 트래킹 시작된 뒤에만 보여줄 것)
+  // 초기엔 버튼 숨김 (성공해서 트래킹 시작된 뒤에만 보여줄 것)
   calibrationButton.style.display='none';
 
   saveDataButton=document.getElementById('saveDataButton');
@@ -867,14 +879,14 @@ function startPlaybackCustom(gArr,cArr){
       try {
         await eyeTracker.startTracking(onGaze, () => {});
       } catch (e) {
-        console.error('❌ startTracking 실패(권한/디바이스 없음 가능):', e);
+        console.error('❌ startTracking 실패:(권한/디바이스 없음 가능):', e);
         if (CAMERA_ERROR_URL) return (window.location.href = CAMERA_ERROR_URL);
       }
 
       isTracking = true;
       eyeTracker.showImage();
 
-      // ✅ 트래킹 성공 시에만 캘리브레이션 버튼 활성+표시
+      // 트래킹 성공 시에만 캘리브레이션 버튼 활성+표시
       calibrationButton.disabled = false;
       calibrationButton.classList?.remove('hidden-init');
       calibrationButton.style.display = 'inline-block';

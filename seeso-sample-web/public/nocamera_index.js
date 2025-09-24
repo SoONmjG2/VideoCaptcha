@@ -69,10 +69,10 @@ function beepUrl(name) {
 }
 
 // ===== 유틸 =====
-function drawDot(x, y, r = 10) {
+function drawDot(x, y, r = 15) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.arc(x, y, r, 0, Math.PI * 10);
   ctx.fillStyle = "rgba(0, 0, 255, 0.7)";
   ctx.fill();
   dot = { x, y, r };
