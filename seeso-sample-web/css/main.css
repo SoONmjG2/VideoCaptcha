@@ -48,8 +48,8 @@ html, body {
 
 /* 비디오 */
 video {
-  width: 80vw;
-  max-width: 960px;
+  width: 960px !important;     /* ✅ 영상 표시 크기 확장 */
+  height: 540px !important;    /* ✅ 16:9 비율 유지 */
   height: auto;
   object-fit: contain;
   z-index: 1;
