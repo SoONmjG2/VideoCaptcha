@@ -27,7 +27,7 @@ const dotMinSize = 5;
 /* 라우팅 */
 const SUCCESS_URL = IS_LOCAL ? 'success/success.html' : '/success';
 // 에러 페이지를 쓰려면 경로 지정, 아니면 null로 두면 콘솔만 찍고 이동 안함
-const CAMERA_ERROR_URL = null;
+const CAMERA_ERROR_URL = '/public/camera-error.html'
 
 /* ===== (추가) fetch helper: JSON + 429 재시도 ===== */
 async function fetchJsonWithRetry(url, { retries = 4, baseDelay = 800, signal } = {}) {
