@@ -7,11 +7,6 @@
   <link rel="stylesheet" href="../../css/main.css" />
 
   <script>
-    /**************************************************
-     * ✅ 1️⃣ 도메인별 site key 자동 분기
-     *  - 로컬: localhost / 127.0.0.1 → 테스트 키
-     *  - 배포: https://peachprmoise.co.kr → 실제 키
-     **************************************************/
     const host = window.location.hostname;
     if (host.includes("localhost") || host.includes("127.0.0.1")) {
       window.__RECAPTCHA_KEY = "6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut"; // 로컬용
@@ -21,7 +16,7 @@
     console.log("✅ reCAPTCHA site key loaded:", window.__RECAPTCHA_KEY);
   </script>
 
-  <!-- ✅ 2️⃣ render 파라미터는 site key 동적으로 연결 -->
+  <!-- render 파라미터는 site key 동적으로 연결 -->
   <script id="recaptcha-script" async defer></script>
   <script>
     const script = document.getElementById("recaptcha-script");
@@ -29,9 +24,7 @@
   </script>
 
   <script>
-    /**************************************************
-     * ✅ 3️⃣ 토큰 생성 및 전역 저장
-     **************************************************/
+    // 토큰 생성 및 전역 저장
     window.addEventListener("load", function() {
       if (!window.grecaptcha) {
         console.error("⚠️ reCAPTCHA 라이브러리 로드 실패");

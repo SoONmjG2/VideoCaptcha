@@ -76,7 +76,7 @@ function toMongoId(idStr) {
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
 /* ---------- reCAPTCHA 검증 ---------- */
-app.post("/api/recaptcha/verify", async (req, res) => {
+app.post("/recaptcha/verify", async (req, res) => {
   const { token } = req.body;
   const secretKey = process.env.RECAPTCHA_SECRET_KEY;
 
@@ -235,9 +235,9 @@ app.get('/', (_req, res) => {
           <code>GET /healthz</code>
         </div>
         <div class="api">
-          <h3>/api/recaptcha/verify</h3>
+          <h3>/recaptcha/verify</h3>
           <p>Google reCAPTCHA 토큰 검증</p>
-          <code>POST /api/recaptcha/verify</code>
+          <code>POST /recaptcha/verify</code>
         </div>
         <div class="api">
           <h3>/video-data</h3>
