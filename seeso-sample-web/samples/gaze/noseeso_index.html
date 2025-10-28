@@ -6,30 +6,79 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="../../css/noseeso_index.css" />
 
-  <!-- ✅ reCAPTCHA 설정 -->
+  <!-- ✅ reCAPTCHA Site Key 자동 분기 -->
   <script>
-    window.__RECAPTCHA_KEY = "6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut"; // 실제 Site Key
+    const host = window.location.hostname;
+
+    if (host.includes("localhost") || host.includes("127.0.0.1")) {
+      // 🧪 로컬 환경
+      window.__RECAPTCHA_KEY = "6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut";
+    } else {
+      // 🚀 배포 환경 (Render, EC2, GitHub Pages 등)
+      window.__RECAPTCHA_KEY = "6LcspMwrAAAAAP5C_hIutqsKG3sLqNDKY9ZL67vU";
+    }
+
+    console.log("✅ reCAPTCHA site key loaded:", window.__RECAPTCHA_KEY);
   </script>
-  <script src="https://www.google.com/recaptcha/api.js?render=6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut" async defer></script>
+
+  <!-- ✅ reCAPTCHA 스크립트 자동 연결 -->
+  <script id="recaptcha-script" async defer></script>
+  <script>
+    const recaptchaScript = document.getElementById("recaptcha-script");
+    recaptchaScript.src = `https://www.google.com/recaptcha/api.js?render=${window.__RECAPTCHA_KEY}`;
+  </script>
+
+  <!-- ✅ 토큰 생성 (1회 자동 실행, 실제 검증은 JS에서 수행) -->
+  <script>
+    window.addEventListener("load", function () {
+      function initRecaptcha() {
+        if (!window.grecaptcha) {
+          console.error("⚠️ reCAPTCHA 라이브러리 로드 실패");
+          return;
+        }
+
+        grecaptcha.ready(() => {
+          console.log("✅ reCAPTCHA 준비 완료");
+          grecaptcha.execute(window.__RECAPTCHA_KEY, { action: "submit" })
+            .then((token) => {
+              console.log("🎯 reCAPTCHA token 생성 성공:", token);
+              window.__RECAPTCHA_TOKEN = token;
+            })
+            .catch((err) => console.error("❌ reCAPTCHA 실행 오류:", err));
+        });
+      }
+
+      // 스크립트 로드 완료 후 실행
+      if (window.grecaptcha) initRecaptcha();
+      else {
+        const interval = setInterval(() => {
+          if (window.grecaptcha) {
+            clearInterval(interval);
+            initRecaptcha();
+          }
+        }, 200);
+      }
+    });
+  </script>
 </head>
 
 <body>
+  <!-- 🎥 비디오 컨테이너 -->
   <div class="video-container">
-    <!-- 안내 문구 -->
     <div class="overlay-text" id="overlayText">로딩중...</div>
 
-    <!-- 비디오 -->
     <video id="myVideo" width="640" height="360" playsinline muted autoplay loop>
       브라우저가 video 태그를 지원하지 않습니다.
     </video>
   </div>
 
-  <!-- 버튼 (제출/다시하기) -->
+  <!-- 🎮 버튼 -->
   <div class="container" style="text-align: center; margin-top: 20px;">
     <button id="submitButton" style="position:fixed;right:24px;bottom:24px;z-index:10001">제출</button>
     <button id="resetButton"  style="position:fixed;right:120px;bottom:24px;z-index:10001">다시하기</button>
   </div>
 
+  <!-- ✅ 클릭 CAPTCHA 로직 -->
   <script src="./noseeso_index.js"></script>
 </body>
 </html>

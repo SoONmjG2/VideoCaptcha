@@ -274,7 +274,8 @@ async function verifyRecaptcha() {
     const siteKey = window.__RECAPTCHA_KEY; // ✅ HTML에 선언한 Site Key
     const token = await grecaptcha.execute(siteKey, { action: "submit" });
 
-    const res = await fetch(API("/api/recaptcha/verify"), {
+    // ✅ 공용 호출 방식 (API()가 알아서 /api 붙여줌)
+    const res = await fetch(API("/recaptcha/verify"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),
@@ -288,7 +289,6 @@ async function verifyRecaptcha() {
     return { success: false, score: 0 };
   }
 }
-
 
 /* ===== 리셋 ===== */
 function resetRecording() { clickDataArray = []; clearCanvas(); }
