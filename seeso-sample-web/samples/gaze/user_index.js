@@ -446,23 +446,25 @@ async function verifyRecaptcha() {
       return { success: false, score: 0 };
     }
 
-    const token = await grecaptcha.execute("6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut", { action: "submit" });
+    // siteKey도 자동 분기하도록 수정 (window.__RECAPTCHA_KEY 사용)
+    const token = await grecaptcha.execute(window.__RECAPTCHA_KEY, { action: "submit" });
     console.log("🎯 새로 발급된 reCAPTCHA token:", token);
 
-    const res = await fetch(`${API_ROOT}/api/recaptcha/verify`, {
+    // ✅ 경로 수정: /api 제거 (이미 API_ROOT에서 프록시됨)
+    const res = await fetch(`${API_ROOT}/recaptcha/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),
     });
 
-    return await res.json();
+    const data = await res.json();
+    console.log("🧠 reCAPTCHA 검증 결과:", data);
+    return data;
   } catch (err) {
     console.error("❌ reCAPTCHA 통신 오류:", err);
     return { success: false, score: 0 };
   }
 }
-
-
 
 /* ===== 재생 ===== */
 function startPlayback(){

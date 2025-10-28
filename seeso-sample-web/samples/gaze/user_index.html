@@ -9,44 +9,62 @@
   <link rel="stylesheet" href="/css/main.css" />
   <link rel="stylesheet" href="/css/user_index.css" />
 
-  <!-- ✅ reCAPTCHA Site Key 설정 -->
+  <!-- ✅ reCAPTCHA Site Key 자동 분기 -->
   <script>
-    // Google reCAPTCHA v3 site key — (네가 발급받은 key)
-    window.__RECAPTCHA_KEY = "6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut";
+    const host = window.location.hostname;
+    if (host.includes("localhost") || host.includes("127.0.0.1")) {
+      // 🧪 로컬 개발 환경
+      window.__RECAPTCHA_KEY = "6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut";
+    } else {
+      // 🚀 배포 환경(Render / EC2 / Nginx / GitHub Pages 등)
+      window.__RECAPTCHA_KEY = "6LcspMwrAAAAAP5C_hIutqsKG3sLqNDKY9ZL67vU";
+    }
     console.log("✅ reCAPTCHA site key loaded:", window.__RECAPTCHA_KEY);
   </script>
 
-  <!-- ✅ reCAPTCHA API 불러오기 (render=siteKey 필수) -->
-  <script src="https://www.google.com/recaptcha/api.js?render=6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut" async defer></script>
-
-  <!-- ✅ 토큰 자동 생성 로직 -->
+  <!-- ✅ render 파라미터를 동적으로 주입 -->
+  <script id="recaptcha-script" async defer></script>
   <script>
-    window.addEventListener("load", function() {
-      // reCAPTCHA 라이브러리가 정상 로드되었는지 확인
-      if (!window.grecaptcha) {
-        console.error("⚠️ reCAPTCHA 라이브러리 로드 실패");
-        return;
+    const recaptchaScript = document.getElementById("recaptcha-script");
+    recaptchaScript.src = `https://www.google.com/recaptcha/api.js?render=${window.__RECAPTCHA_KEY}`;
+  </script>
+
+  <!-- ✅ 토큰 생성 (필요 시 1회 자동 실행, 실제 검증은 user_index.js에서 수행) -->
+  <script>
+    window.addEventListener("load", function () {
+      function initRecaptcha() {
+        if (!window.grecaptcha) {
+          console.error("⚠️ reCAPTCHA 라이브러리 로드 실패");
+          return;
+        }
+
+        grecaptcha.ready(() => {
+          console.log("✅ reCAPTCHA 준비 완료");
+          grecaptcha.execute(window.__RECAPTCHA_KEY, { action: "submit" })
+            .then((token) => {
+              console.log("🎯 reCAPTCHA token 생성 성공:", token);
+              window.__RECAPTCHA_TOKEN = token;
+            })
+            .catch((err) => console.error("❌ reCAPTCHA 실행 오류:", err));
+        });
       }
 
-      // grecaptcha 준비 후 실행
-      grecaptcha.ready(() => {
-        console.log("✅ reCAPTCHA 준비 완료");
-        grecaptcha.execute(window.__RECAPTCHA_KEY, { action: "submit" })
-          .then(token => {
-            console.log("🎯 reCAPTCHA token 생성 성공:", token);
-            // 전역에 저장해서 user_index.js에서 접근 가능하도록
-            window.__RECAPTCHA_TOKEN = token;
-          })
-          .catch(err => {
-            console.error("❌ reCAPTCHA 실행 오류:", err);
-          });
-      });
+      // 스크립트 로드 완료 후 실행
+      if (window.grecaptcha) initRecaptcha();
+      else {
+        const interval = setInterval(() => {
+          if (window.grecaptcha) {
+            clearInterval(interval);
+            initRecaptcha();
+          }
+        }, 200);
+      }
     });
   </script>
 </head>
 
 <body>
-  <!-- 처음 안내 화면 -->
+  <!-- 🧭 처음 안내 화면 -->
   <div class="fade-screen" id="introScreen">
     <p>시선 기록은 저장되지 않으며,<br>로그인 확인을 위한 정답 판정에만 사용됩니다.</p>
   </div>
@@ -54,30 +72,31 @@
   <!-- 🎥 영상 컨테이너 -->
   <div class="video-container">
     <div class="overlay-text" id="overlayText">로딩중..</div>
-
     <video id="myVideo" loop autoplay muted width="640" height="360">
       브라우저가 video 태그를 지원하지 않습니다.
     </video>
   </div>
 
+  <!-- 🎯 Canvas -->
   <canvas id="preview" style="position: fixed;"></canvas>
-  <canvas id="output"  style="position: fixed; display: none;"></canvas>
+  <canvas id="output" style="position: fixed; display: none;"></canvas>
 
+  <!-- 🧭 Calibration UI -->
   <h1 id="calibrationTitle" style="text-align: center; z-index: -1;">Calibration Service</h1>
   <h2 id="gazeInfo" style="text-align: center; color: red;"></h2>
 
+  <!-- 🎮 버튼 UI -->
   <div class="container" style="text-align:center; margin-top:20px;">
     <button id="calibrationButton" style="padding:10px 20px; font-size:16px;">Start Calibration</button>
-
     <button id="submitButton" style="padding:10px 20px; font-size:16px; margin-left:10px;">제출</button>
-    <button id="resetButton"  style="padding:10px 20px; font-size:16px; margin-left:10px;">다시하기</button>
+    <button id="resetButton" style="padding:10px 20px; font-size:16px; margin-left:10px;">다시하기</button>
   </div>
 
   <!-- 🎬 시선 추적 로직 -->
   <script src="./user_index.js"></script>
 
+  <!-- 🎞️ 인트로 → 비디오 표시 -->
   <script>
-    // 인트로 → 비디오 표시
     window.addEventListener("DOMContentLoaded", () => {
       setTimeout(() => {
         document.getElementById("introScreen").classList.add("fade-out");
