@@ -88,7 +88,6 @@ async function verifyRecaptcha(action = "submit") {
   try {
     await waitRecaptchaReady();
 
-    // ✅ 매번 새 토큰 발급 (중복 방지)
     const token = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action });
     console.log("🎯 새로 받은 token:", token);
 
@@ -97,7 +96,12 @@ async function verifyRecaptcha(action = "submit") {
       return { success: false, score: 0 };
     }
 
-    const res = await fetch(`${API_ROOT}/api/recaptcha/verify`, {
+    // ✅ 환경별 API 경로 분기
+    const verifyUrl = IS_LOCAL
+      ? `${API_ROOT}/api/recaptcha/verify`   // 로컬 (http://localhost:3000/api/recaptcha/verify)
+      : `${API_ROOT}/recaptcha/verify`;      // 배포 (/api/recaptcha/verify)
+
+    const res = await fetch(verifyUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token })
