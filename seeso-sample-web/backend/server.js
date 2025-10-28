@@ -7,7 +7,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 const axios = require('axios');
 
 // 로컬에서는 .env 사용, Render에서는 ENV 탭 사용
-try { require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); } catch (_) {}
+// try { require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); } catch (_) {}
 
 const PORT       = process.env.PORT || 3000;
 const MONGO_URI  = process.env.MONGO_URI;
@@ -73,6 +73,35 @@ function toMongoId(idStr) {
 
 /* ---------- Healthcheck ---------- */
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
+
+/* ---------- reCAPTCHA 검증 ---------- */
+app.post("/verify-recaptcha", async (req, res) => {
+  const { token } = req.body;
+  const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+
+  if (!token) {
+    return res.status(400).json({ success: false, error: "Missing token" });
+  }
+  if (!secretKey) {
+    return res.status(500).json({ success: false, error: "Missing secret key on server" });
+  }
+
+  try {
+    const verifyRes = await axios.post(
+      `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${token}`
+    );
+    const data = verifyRes.data;
+
+    if (data.success) {
+      res.json({ success: true, score: data.score || null, action: data.action || null });
+    } else {
+      res.status(400).json({ success: false, error: data["error-codes"] });
+    }
+  } catch (err) {
+    console.error("🔥 reCAPTCHA verify error:", err.message);
+    res.status(500).json({ success: false, error: "Verification failed" });
+  }
+});
 
 /* ---------- API: 영상 메타 (중복 없이 랜덤) ---------- */
 // 새로고침 시 항상 새 랜덤(풀에서 pop), 모두 소진되면 자동 초기화
@@ -209,6 +238,11 @@ app.get('/', (_req, res) => {
           <h3>/healthz</h3>
           <p>서버 상태 체크</p>
           <code>GET /healthz</code>
+        </div>
+        <div class="api">
+          <h3>/verify-recaptcha</h3>
+          <p>Google reCAPTCHA 토큰 검증</p>
+          <code>POST /verify-recaptcha</code>
         </div>
         <div class="api">
           <h3>/video-data</h3>
