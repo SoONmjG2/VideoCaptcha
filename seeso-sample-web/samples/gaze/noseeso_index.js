@@ -241,17 +241,54 @@ function nearestAnswerForClick(click, answers, rN, before = GAZE_WIN_BEFORE_MS, 
   return (best && bestDist <= rN) ? best : null;
 }
 
-/* ===== 제출 (시간창 + 거리 모두 만족해야 통과) ===== */
+/* ===== 제출 (reCAPTCHA + 정답 검증) ===== */
 async function onSubmit() {
-  const cleaned = dedupToggle(clickDataArray.slice());
-  const R_CLICK = rEffClick();
-  const passed = cleaned.some(click => !!nearestAnswerForClick(click, ANSWER, R_CLICK));
-  if (passed) {
-    window.location.href = SUCCESS_URL;
-  } else {
-    await fullReset();
+  try {
+    // ✅ 1️⃣ reCAPTCHA 인증 요청
+    const result = await verifyRecaptcha();
+    if (!result.success || result.score < 0.5) {
+      alert(`❌ 자동화 의심 (score=${result.score})`);
+      return;
+    }
+
+    // ✅ 2️⃣ 클릭 정답 검증
+    const cleaned = dedupToggle(clickDataArray.slice());
+    const R_CLICK = rEffClick();
+    const passed = cleaned.some(click => !!nearestAnswerForClick(click, ANSWER, R_CLICK));
+
+    if (passed) {
+      window.location.href = SUCCESS_URL;
+    } else {
+      await fullReset();
+    }
+  } catch (err) {
+    console.error("❌ onSubmit 중 오류:", err);
+    alert("⚠️ 서버 또는 네트워크 오류");
   }
 }
+
+
+/* ===== reCAPTCHA 검증 ===== */
+async function verifyRecaptcha() {
+  try {
+    const siteKey = window.__RECAPTCHA_KEY; // ✅ HTML에 선언한 Site Key
+    const token = await grecaptcha.execute(siteKey, { action: "submit" });
+
+    const res = await fetch(API("/api/recaptcha/verify"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+
+    const data = await res.json();
+    console.log("🧠 reCAPTCHA result:", data);
+    return data;
+  } catch (err) {
+    console.error("❌ reCAPTCHA 오류:", err);
+    return { success: false, score: 0 };
+  }
+}
+
 
 /* ===== 리셋 ===== */
 function resetRecording() { clickDataArray = []; clearCanvas(); }

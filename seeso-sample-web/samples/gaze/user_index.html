@@ -1,4 +1,4 @@
-<!-- samples/gaze/index.html -->
+<!-- samples/gaze/user_index.html -->
 <!doctype html>
 <html class="no-js" lang="ko">
 <head>
@@ -8,6 +8,41 @@
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="/css/main.css" />
   <link rel="stylesheet" href="/css/user_index.css" />
+
+  <!-- ✅ reCAPTCHA Site Key 설정 -->
+  <script>
+    // Google reCAPTCHA v3 site key — (네가 발급받은 key)
+    window.__RECAPTCHA_KEY = "6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut";
+    console.log("✅ reCAPTCHA site key loaded:", window.__RECAPTCHA_KEY);
+  </script>
+
+  <!-- ✅ reCAPTCHA API 불러오기 (render=siteKey 필수) -->
+  <script src="https://www.google.com/recaptcha/api.js?render=6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut" async defer></script>
+
+  <!-- ✅ 토큰 자동 생성 로직 -->
+  <script>
+    window.addEventListener("load", function() {
+      // reCAPTCHA 라이브러리가 정상 로드되었는지 확인
+      if (!window.grecaptcha) {
+        console.error("⚠️ reCAPTCHA 라이브러리 로드 실패");
+        return;
+      }
+
+      // grecaptcha 준비 후 실행
+      grecaptcha.ready(() => {
+        console.log("✅ reCAPTCHA 준비 완료");
+        grecaptcha.execute(window.__RECAPTCHA_KEY, { action: "submit" })
+          .then(token => {
+            console.log("🎯 reCAPTCHA token 생성 성공:", token);
+            // 전역에 저장해서 user_index.js에서 접근 가능하도록
+            window.__RECAPTCHA_TOKEN = token;
+          })
+          .catch(err => {
+            console.error("❌ reCAPTCHA 실행 오류:", err);
+          });
+      });
+    });
+  </script>
 </head>
 
 <body>
@@ -16,7 +51,7 @@
     <p>시선 기록은 저장되지 않으며,<br>로그인 확인을 위한 정답 판정에만 사용됩니다.</p>
   </div>
 
-  <!-- 🎥 영상 컨테이너 (index.html 동일 구조) -->
+  <!-- 🎥 영상 컨테이너 -->
   <div class="video-container">
     <div class="overlay-text" id="overlayText">로딩중..</div>
 
@@ -34,13 +69,15 @@
   <div class="container" style="text-align:center; margin-top:20px;">
     <button id="calibrationButton" style="padding:10px 20px; font-size:16px;">Start Calibration</button>
 
-    <button id="submitButton"      style="padding:10px 20px; font-size:16px; margin-left:10px;">제출</button>
-    <button id="resetButton"       style="padding:10px 20px; font-size:16px; margin-left:10px;">다시하기</button>
+    <button id="submitButton" style="padding:10px 20px; font-size:16px; margin-left:10px;">제출</button>
+    <button id="resetButton"  style="padding:10px 20px; font-size:16px; margin-left:10px;">다시하기</button>
   </div>
 
-  <!-- 🎬 스크립트 -->
+  <!-- 🎬 시선 추적 로직 -->
   <script src="./user_index.js"></script>
+
   <script>
+    // 인트로 → 비디오 표시
     window.addEventListener("DOMContentLoaded", () => {
       setTimeout(() => {
         document.getElementById("introScreen").classList.add("fade-out");

@@ -1,11 +1,18 @@
 <!doctype html>
-<html class="no-js" lang="ko">
+<html lang="ko">
 <head>
   <meta charset="utf-8" />
   <title>클릭 기반 CAPTCHA</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="../../css/noseeso_index.css" />
+
+  <!-- ✅ reCAPTCHA 설정 -->
+  <script>
+    window.__RECAPTCHA_KEY = "6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut"; // 실제 Site Key
+  </script>
+  <script src="https://www.google.com/recaptcha/api.js?render=6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut" async defer></script>
 </head>
+
 <body>
   <div class="video-container">
     <!-- 안내 문구 -->
@@ -17,10 +24,10 @@
     </video>
   </div>
 
-  <!-- 버튼들 (제출/다시하기만) -->
+  <!-- 버튼 (제출/다시하기) -->
   <div class="container" style="text-align: center; margin-top: 20px;">
     <button id="submitButton" style="position:fixed;right:24px;bottom:24px;z-index:10001">제출</button>
-    <button id="resetButton" style="position:fixed;right:120px;bottom:24px;z-index:10001">다시하기</button>
+    <button id="resetButton"  style="position:fixed;right:120px;bottom:24px;z-index:10001">다시하기</button>
   </div>
 
   <script src="./noseeso_index.js"></script>

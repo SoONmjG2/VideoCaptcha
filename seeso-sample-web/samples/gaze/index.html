@@ -1,17 +1,41 @@
 <!-- samples/gaze/index.html -->
 <!doctype html>
-<html class="no-js" lang="ko">
+<html lang="ko">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>SeeSo Web Sample</title>
-  <link rel="stylesheet" href="../../css/main.css">
+  <link rel="stylesheet" href="../../css/main.css" />
+
+  <script>
+    // ✅ reCAPTCHA 로컬 키
+    window.__RECAPTCHA_KEY = "6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut";
+    console.log("✅ reCAPTCHA site key loaded:", window.__RECAPTCHA_KEY);
+  </script>
+
+  <!-- ✅ 반드시 render 파라미터 포함 -->
+  <script src="https://www.google.com/recaptcha/api.js?render=6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut" async defer></script>
+
+  <script>
+    window.addEventListener("load", function() {
+      if (!window.grecaptcha) {
+        console.error("⚠️ reCAPTCHA 라이브러리 로드 실패");
+        return;
+      }
+      grecaptcha.ready(() => {
+        console.log("✅ reCAPTCHA 준비 완료");
+        grecaptcha.execute(window.__RECAPTCHA_KEY, { action: "submit" }).then((token) => {
+          console.log("🎯 reCAPTCHA token 생성 성공:", token);
+          window.__RECAPTCHA_TOKEN = token;
+        }).catch(err => console.error("❌ reCAPTCHA 실행 오류:", err));
+      });
+    });
+  </script>
 </head>
 
 <body>
   <div class="video-container">
     <div class="overlay-text" id="overlayText">로딩중..</div>
-
     <video id="myVideo" loop autoplay muted width="640" height="360">
       브라우저가 video 태그를 지원하지 않습니다.
     </video>
@@ -20,25 +44,20 @@
   <canvas id="preview" style="position: fixed;"></canvas>
   <canvas id="output" style="position: fixed; display: none;"></canvas>
 
-  <h1 id="calibrationTitle" style="text-align: center; z-index: -1;">Calibration Service</h1>
+  <h1 id="calibrationTitle" style="text-align: center;">Calibration Service</h1>
   <h2 id="gazeInfo" style="text-align: center; color: red;"></h2>
 
   <div class="container" style="text-align: center; margin-top: 20px;">
-    <button id="calibrationButton" style="padding: 10px 20px; font-size: 16px;">Start Calibration</button>
-
-    <!-- 우하단 도크: [파일명][파일 선택][그리기][그리기 취소][Save & Play] -->
+    <button id="calibrationButton" style="padding:10px 20px;font-size:16px;">Start Calibration</button>
     <input type="file" id="jsonUploader" accept=".json" multiple style="display:none;" />
-    <button id="uploadButton"      style="padding:10px 20px; font-size:16px; display:none;">파일 선택</button>
-    <button id="drawButton"        style="padding:10px 20px; font-size:16px; display:none;">그리기</button>
-    <button id="cancelDrawButton"  style="padding:10px 20px; font-size:16px; display:none;">그리기 취소</button>
-    <span   id="uploadName"        style="display:none;"></span>
-
-    <button id="saveDataButton" style="padding: 10px 20px; font-size: 16px; margin-left: 10px; display: none;">Save &amp; Play</button>
-    <button id="ptlayDataButon" style="padding: 10px 20px; font-size: 16px; margin-left: 10px; display: none;">Play Gaze Data</button>
-
-    <!-- 제출/다시하기는 영상 아래 인라인 -->
+    <button id="uploadButton" style="padding:10px 20px;font-size:16px;display:none;">파일 선택</button>
+    <button id="drawButton" style="padding:10px 20px;font-size:16px;display:none;">그리기</button>
+    <button id="cancelDrawButton" style="padding:10px 20px;font-size:16px;display:none;">그리기 취소</button>
+    <span id="uploadName" style="display:none;"></span>
+    <button id="saveDataButton" style="padding:10px 20px;font-size:16px;margin-left:10px;display:none;">Save &amp; Play</button>
+    <button id="ptlayDataButon" style="padding:10px 20px;font-size:16px;margin-left:10px;display:none;">Play Gaze Data</button>
     <button id="submitButton" style="position:fixed;right:24px;bottom:24px;z-index:10001">제출</button>
-    <button id="resetButton"  style="position:fixed;right:120px;bottom:24px;z-index:10001">다시하기</button>
+    <button id="resetButton" style="position:fixed;right:120px;bottom:24px;z-index:10001">다시하기</button>
   </div>
 
   <script src="./index.js"></script>

@@ -25,6 +25,7 @@ const licenseKey = IS_LOCAL ? SEESO_DEV_KEY : SEESO_PROD_KEY;
 const dotMaxSize = 10;
 const dotMinSize = 5;
 
+
 /* 라우팅 */
 const SUCCESS_URL = IS_LOCAL ? 'success/success.html' : '/success';
 // 에러 페이지를 쓰려면 경로 지정, 아니면 null로 두면 콘솔만 찍고 이동 안함
@@ -61,6 +62,58 @@ async function fetchJsonWithRetry(url, { retries = 4, baseDelay = 800, signal } 
     catch { throw new Error(`Invalid JSON from ${url}: ${text.slice(0,120)}`); }
   }
 }
+
+/* ===== reCAPTCHA v3 (모듈 아님 버전) ===== */
+
+// ✅ window.__RECAPTCHA_KEY로 사이트키를 주입받음 (index.html에서 설정)
+const RECAPTCHA_SITE_KEY = window.__RECAPTCHA_KEY || "YOUR_FALLBACK_KEY";
+
+// ✅ v3 준비 대기
+function waitRecaptchaReady() {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    (function tick() {
+      if (window.grecaptcha && typeof window.grecaptcha.ready === "function") {
+        return window.grecaptcha.ready(() => resolve());
+      }
+      if (Date.now() - start > 8000) {
+        return reject(new Error("reCAPTCHA load timeout"));
+      }
+      setTimeout(tick, 50);
+    })();
+  });
+}
+
+async function verifyRecaptcha(action = "submit") {
+  try {
+    await waitRecaptchaReady();
+
+    // ✅ 매번 새 토큰 발급 (중복 방지)
+    const token = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action });
+    console.log("🎯 새로 받은 token:", token);
+
+    if (!token) {
+      console.error("⚠️ reCAPTCHA token 생성 실패 (null)");
+      return { success: false, score: 0 };
+    }
+
+    const res = await fetch(`${API_ROOT}/api/recaptcha/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token })
+    });
+
+    const text = await res.text();
+    console.log("🧾 서버 응답(raw):", text);
+
+    const data = JSON.parse(text);
+    return { success: data.success, score: data.score || 0 };
+  } catch (err) {
+    console.error("❌ reCAPTCHA 통신 오류:", err);
+    return { success: false, score: 0 };
+  }
+}
+
 
 /* ===== 정규화 유틸 ===== */
 const PREC = 4;
@@ -556,32 +609,58 @@ function saveGazeData(){
 }
 
 /* ===== 제출 처리 ===== */
-async function onSubmit(){
+async function onSubmit() {
+  // 🔐 reCAPTCHA 검증
+  const { success, score } = await verifyRecaptcha('submit');
+  console.log("🧠 reCAPTCHA 결과:", { success, score });
+
+  // ✅ 1. reCAPTCHA 통신 오류
+  if (!success) {
+    alert("❌ reCAPTCHA 통신 오류. 다시 시도해주세요.");
+    await fullReset();
+    return;
+  }
+
+  // ✅ 2. 점수 기준 (0.5 미만이면 차단)
+  if (score < 0.5) {
+    console.warn(`⚠️ 낮은 점수(${score}), 로봇 의심`);
+    await fullReset();
+    return;
+  }
+
+  console.log("✅ reCAPTCHA 통과 — 사람으로 판정됨 (score:", score, ")");
+
+  // ✅ 3. CAPTCHA 실제 통과 로직
   const cleaned = dedupToggle(clickDataArray.slice());
 
-  const R_CLICK = rEffClick();           // 클릭-정답 근접 판정 반경(검정)
-  const R_GAZE  = rEffGaze();            // 시선 dwell/entry 판정 반경(파랑)
+  const R_CLICK = rEffClick();  // 클릭-정답 근접 판정 반경(검정)
+  const R_GAZE  = rEffGaze();   // 시선 dwell/entry 판정 반경(파랑)
 
   const passed = cleaned.some(c => {
     const matched = nearestAnswerForClick(
       c, ANSWER, R_CLICK, GAZE_WIN_BEFORE_MS, GAZE_WIN_AFTER_MS
     );
-    return !!matched &&
+    return (
+      !!matched &&
       dwellNearClick(c, gazeDataArray, R_GAZE,
                      GAZE_WIN_BEFORE_MS, GAZE_WIN_AFTER_MS, GAZE_DWELL_MS) &&
-      entryRuleRecentIn(c, gazeDataArray, R_GAZE/2, ENTRY_WINDOW_MS);
+      entryRuleRecentIn(c, gazeDataArray, R_GAZE / 2, ENTRY_WINDOW_MS)
+    );
   });
 
+  // ✅ 4. 정답 클릭 통과 시 → 성공 페이지 이동
   if (passed) {
+
     if (DOWNLOAD_COMBINED_ONLY) {
       await saveCombinedThenNavigate(gazeDataArray, cleaned, SUCCESS_URL);
     } else {
       await saveExactlyLikeSaveAndPlayThenNavigate(gazeDataArray, cleaned, SUCCESS_URL);
     }
   } else {
-    await fullReset(); // 오답은 저장 없이 리셋
+    await fullReset();
   }
 }
+
 
 /* ===== 재생 ===== */
 function startPlayback(){

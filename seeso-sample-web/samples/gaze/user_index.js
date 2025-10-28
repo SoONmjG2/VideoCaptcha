@@ -417,6 +417,15 @@ function saveGazeData(){
 
 /* ===== 제출 ===== */
 async function onSubmit(){
+  // ✅ reCAPTCHA 검증
+  const recaptchaResult = await verifyRecaptcha();
+  if (!recaptchaResult.success || recaptchaResult.score < 0.5) {
+    alert(`❌ reCAPTCHA 실패 (score=${recaptchaResult.score})`);
+    console.warn("❌ reCAPTCHA 인증 실패:", recaptchaResult);
+    return;
+  }
+  console.log(`✅ reCAPTCHA 통과 (score=${recaptchaResult.score})`);
+
   const cleaned = dedupToggle(clickDataArray.slice());
   const R_CLICK = rEffClick();
   const R_GAZE  = rEffGaze();
@@ -427,6 +436,33 @@ async function onSubmit(){
   if (passed) window.location.href = SUCCESS_URL;
   else await fullReset();
 }
+
+/* ===== ✅ reCAPTCHA 검증 함수 ===== */
+async function verifyRecaptcha() {
+  try {
+    // ✅ 제출할 때마다 새 토큰 발급
+    if (!window.grecaptcha) {
+      console.warn("⚠️ reCAPTCHA 라이브러리가 아직 로드되지 않았습니다.");
+      return { success: false, score: 0 };
+    }
+
+    const token = await grecaptcha.execute("6Le1PforAAAAAKExXZqDKIl1ukayF6E7cqaGVUut", { action: "submit" });
+    console.log("🎯 새로 발급된 reCAPTCHA token:", token);
+
+    const res = await fetch(`${API_ROOT}/api/recaptcha/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+
+    return await res.json();
+  } catch (err) {
+    console.error("❌ reCAPTCHA 통신 오류:", err);
+    return { success: false, score: 0 };
+  }
+}
+
+
 
 /* ===== 재생 ===== */
 function startPlayback(){
