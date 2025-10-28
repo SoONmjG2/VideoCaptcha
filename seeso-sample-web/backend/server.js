@@ -7,6 +7,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 const axios = require('axios');
 
 // 로컬에서는 .env 사용, Render에서는 ENV 탭 사용
+// 필요 시 주석 해제
 // try { require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); } catch (_) {}
 
 const PORT       = process.env.PORT || 3000;
@@ -75,7 +76,7 @@ function toMongoId(idStr) {
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
 /* ---------- reCAPTCHA 검증 ---------- */
-app.post("/verify-recaptcha", async (req, res) => {
+app.post("/api/recaptcha/verify", async (req, res) => {
   const { token } = req.body;
   const secretKey = process.env.RECAPTCHA_SECRET_KEY;
 
@@ -104,12 +105,10 @@ app.post("/verify-recaptcha", async (req, res) => {
 });
 
 /* ---------- API: 영상 메타 (중복 없이 랜덤) ---------- */
-// 새로고침 시 항상 새 랜덤(풀에서 pop), 모두 소진되면 자동 초기화
 app.get('/video-data', async (_req, res) => {
   try {
     if (randomPool.length === 0) await reloadPool();
     if (randomPool.length === 0) {
-      // 컬렉션에 영상이 없을 때
       return res.status(404).json({ error: 'EMPTY_POOL' });
     }
 
@@ -121,9 +120,7 @@ app.get('/video-data', async (_req, res) => {
       id: String(doc._id),
       question: doc.question || '영상 질문입니다.',
       answer: Array.isArray(doc.answer) ? doc.answer : [],
-      // 프론트는 이 경로로 <video src> 세팅하면 됨
-      videoPath: `/video/${doc._id}`,        // 권장: path param
-      // 하위호환: `/video?id=${doc._id}` 도 동작함
+      videoPath: `/video/${doc._id}`,
       round,
       remaining: randomPool.length,
     });
@@ -148,7 +145,7 @@ async function proxyVideoById(req, res, id) {
     responseType: 'stream',
     headers: forwardHeaders,
     maxRedirects: 5,
-    validateStatus: () => true,  // 원본 상태코드 그대로
+    validateStatus: () => true,
     timeout: 30_000,
   });
 
@@ -162,7 +159,6 @@ async function proxyVideoById(req, res, id) {
 
   const src = upstream.data;
 
-  // ✅ 끊김/에러 안전 가드 (탭 닫힘/네트워크 끊김/시크바 난사 등)
   const abort = (err) => {
     if (err && !['EPIPE','ECONNRESET'].includes(err.code || '')) {
       console.warn('🔴 stream aborted:', err.message || err);
@@ -173,15 +169,14 @@ async function proxyVideoById(req, res, id) {
       else res.end();
     } catch {}
   };
-  src.on('error', abort);   // 원본 스트림 에러
-  res.on('close', abort);   // 클라이언트가 창/탭 닫음
-  req.on('aborted', abort); // 요청 취소
+  src.on('error', abort);
+  res.on('close', abort);
+  req.on('aborted', abort);
 
   src.pipe(res);
 }
 
 /* ---------- API: 영상 프록시 ---------- */
-// 권장: /video/:id
 app.get('/video/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -240,9 +235,9 @@ app.get('/', (_req, res) => {
           <code>GET /healthz</code>
         </div>
         <div class="api">
-          <h3>/verify-recaptcha</h3>
+          <h3>/api/recaptcha/verify</h3>
           <p>Google reCAPTCHA 토큰 검증</p>
-          <code>POST /verify-recaptcha</code>
+          <code>POST /api/recaptcha/verify</code>
         </div>
         <div class="api">
           <h3>/video-data</h3>
@@ -284,9 +279,8 @@ process.on('uncaughtException', (err) => {
     const server = app.listen(PORT, '0.0.0.0', () =>
       console.log(`🚀 Listening on :${PORT}`)
     );
-    // Render/프록시 안정화를 위한 타임아웃 튜닝
-    server.keepAliveTimeout = 65_000;  // 65s
-    server.headersTimeout   = 66_000;  // > keepAliveTimeout
+    server.keepAliveTimeout = 65_000;
+    server.headersTimeout   = 66_000;
   } catch (err) {
     console.error('❌ MongoDB connection error:', err);
     process.exit(1);
