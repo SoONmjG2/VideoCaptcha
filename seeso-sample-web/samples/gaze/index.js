@@ -1024,16 +1024,6 @@ function startPlaybackCustom(gArr,cArr){
     getClickToggleR_N: () => CLICK_TOGGLE_RADIUS_N,
   });
 
-  // 5초 타임아웃: 여전히 버튼이 disabled면 카메라 없음으로 간주
-  setTimeout(() => {
-    if (calibrationButton.disabled) {
-      console.warn("⏳ 카메라 응답 없음");
-      if (CAMERA_ERROR_URL) {
-        window.location.href = CAMERA_ERROR_URL;
-      }
-    }
-  }, 5000);
-
   window.addEventListener('resize', sizeCanvasToWindow);
   sizeCanvasToWindow();
 })();

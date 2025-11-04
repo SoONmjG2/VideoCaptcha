@@ -15,13 +15,13 @@ document.getElementById("loginForm").addEventListener("submit", (e) => {
     setTimeout(() => { window.location.href = url; }, 1200);
   };
 
-  // ✅ 관리자 계정: admin + 1234 또는 "admin-1234"
-  if ((username === "admin" && password === "1234") || `${username}-${password}` === "admin-1234") {
+  // ✅ 관리자 계정: admin 또는 "12345678"
+  if ((username === "admin" && password === "12345678") || `${username}-${password}` === "admin-1234") {
     return go("/samples/gaze/index.html", "관리자 로그인 성공");
   }
 
-  // ✅ 시연-성공: user + 1234 또는 "user-1234"
-  if ((username === "user" && password === "1234") || `${username}-${password}` === "user-1234") {
+  // ✅ 시연-성공: user 또는 "12345678"
+  if ((username === "user" && password === "12345678") || `${username}-${password}` === "user-1234") {
     return go("/public/destination.html", "사용자 로그인 성공");
   }
 
