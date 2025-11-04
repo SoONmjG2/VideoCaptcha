@@ -23,11 +23,10 @@ let startTime = 0;
 let beepSuccessCount = 0;
 let attemptCount = 0;
 let randomTimer = null;
-let beepWindows = [];
+let beepTimes = [];
+let suppressUntil = 0;
 
 const totalBeepsNeeded = 3;
-let beepTimes = [];
-let suppressUntil = 0; // 🔹 랜덤 dot 금지 시점
 
 // ===== beeps 자동 탐지 =====
 let BEEPS_BASE = null;
@@ -49,19 +48,20 @@ async function resolveBeepsBase() {
   }
   throw new Error("beeps 경로를 찾지 못했습니다.");
 }
+
 function beepUrl(name) {
   if (!BEEPS_BASE) throw new Error("BEEPS_BASE not resolved");
   return `${BEEPS_BASE}/${name}`;
 }
 
 // ===== 유틸 =====
-function drawDot(x, y, r = 15) {
+function drawDot(x, y, r = 15, isBeep = false) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(0,0,255,0.7)";
+  ctx.fillStyle = "#0066FF"; // ✅ 항상 파란색 (불투명)
   ctx.fill();
-  dot = { x, y, r, appearTime: performance.now(), isBeep: false };
+  dot = { x, y, r, appearTime: performance.now(), isBeep };
   canClick = true;
 }
 
@@ -83,6 +83,7 @@ function updateBars() {
   const successPct = (beepSuccessCount / totalBeepsNeeded) * 100;
   successBar.style.width = successPct + "%";
   barText.textContent = `성공 ${beepSuccessCount} / ${totalBeepsNeeded}`;
+
   if (beepSuccessCount >= totalBeepsNeeded) {
     success = true;
     successModal.style.display = "flex";
@@ -92,19 +93,21 @@ function updateBars() {
   }
 }
 
-// ===== 랜덤 dot 루프 (beep 전후 억제 포함) =====
+// ===== 랜덤 dot 루프 =====
 function startRandomDots() {
   if (success) return;
+  if (dot && dot.isBeep) return; // ✅ beep 점 있으면 랜덤 금지
+
   const delay = 1200 + Math.random() * 800;
 
   randomTimer = setTimeout(() => {
     if (success) return;
+    if (dot && dot.isBeep) return;
 
     const nowSec = (performance.now() - startTime) / 1000;
-    // 🔹 beep 전후 ±1초 동안 랜덤 dot 금지
-    const nearBeep = beepTimes.some(t => Math.abs(nowSec - t) < 1.0);
+    const nearBeep = beepTimes.some(t => Math.abs(nowSec - t) < 1.2);
+
     if (nearBeep || nowSec < suppressUntil) {
-      // beep 근처면 다음 시도로 넘김
       startRandomDots();
       return;
     }
@@ -112,7 +115,9 @@ function startRandomDots() {
     if (!dot) {
       const { x, y } = randomPos();
       drawDot(x, y);
+
       setTimeout(() => {
+        if (!dot || dot.isBeep) return;
         clearDot();
         startRandomDots();
       }, 1500 + Math.random() * 500);
@@ -122,10 +127,9 @@ function startRandomDots() {
   }, delay);
 }
 
-// ===== 클릭 핸들러 =====
+// ===== 클릭 =====
 canvas.addEventListener("click", (e) => {
   if (!dot || !canClick) return;
-  attemptCount++;
 
   const dx = e.clientX - dot.x;
   const dy = e.clientY - dot.y;
@@ -143,21 +147,18 @@ canvas.addEventListener("click", (e) => {
 // ===== 시작 버튼 =====
 startBtn.addEventListener("click", async () => {
   success = false;
-  canClick = false;
   beepSuccessCount = 0;
   attemptCount = 0;
   clearDot();
-
   updateBars();
+
   progressContainer.style.display = "flex";
   startContainer.style.display = "none";
 
   try {
     await resolveBeepsBase();
-
     const info = await fetch(beepUrl("file_count.json")).then(r => r.json());
-    const maxIndex = info.count;
-    const fileIndex = Math.floor(Math.random() * maxIndex) + 1;
+    const fileIndex = Math.floor(Math.random() * info.count) + 1;
 
     const audio = new Audio(beepUrl(`beep_${fileIndex}.wav`));
     const data = await fetch(beepUrl(`beep_${fileIndex}.json`)).then(r => r.json());
@@ -170,46 +171,37 @@ startBtn.addEventListener("click", async () => {
         setTimeout(() => {
           if (success) return;
 
-          // 🔹 beep 전후 1초간 랜덤 dot 정지
-          suppressUntil = (performance.now() - startTime) / 1000 + 1;
+          suppressUntil = (performance.now() - startTime) / 1000 + 1.5;
 
-          // 🔹 현재 dot 있으면 교체, 없으면 새로 생성
           const { x, y } = randomPos();
-          drawDot(x, y);
-          dot.isBeep = true;
+          drawDot(x, y, 15, true); // ✅ beep 점도 파란색
 
           setTimeout(() => {
             clearDot();
-            dot = null;
-            dot.isBeep = false;
-            startRandomDots(); // beep 끝나면 다시 랜덤 루프 이어감
-          }, 1200);
+            setTimeout(() => startRandomDots(), 300); // ✅ 딜레이 후 랜덤 재시작
+          }, 1600);
 
-          // 마지막 beep 후 실패 체크
           if (idx === beepTimes.length - 1) {
             setTimeout(() => {
-              if (!success && beepSuccessCount < totalBeepsNeeded) {
+              if (!success && beepSuccessCount < totalBeepsNeeded)
                 failModal.style.display = "flex";
-              }
             }, 1500);
           }
         }, time * 1000);
       });
 
-      startRandomDots(); // 시작 직후 랜덤 dot 루프 실행
+      startRandomDots();
     };
 
     audio.play();
   } catch (err) {
-    console.error("❌ beeps 리소스 로딩 실패:", err);
+    console.error("❌ beeps 로딩 실패:", err);
     failModal.style.display = "flex";
   }
 });
 
-// ===== 모달 버튼 =====
-retryBtn.onclick = () => {
-  window.location.href = "./nocamera_index.html";
-};
+// ===== 모달 =====
+retryBtn.onclick = () => window.location.href = "./nocamera_index.html";
 
 // 반응형
 window.addEventListener("resize", () => {
