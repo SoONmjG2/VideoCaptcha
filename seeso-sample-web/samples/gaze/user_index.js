@@ -451,7 +451,11 @@ async function verifyRecaptcha() {
     console.log("🎯 새로 발급된 reCAPTCHA token:", token);
 
     // ✅ 경로 수정: /api 제거 (이미 API_ROOT에서 프록시됨)
-    const res = await fetch(`${API_ROOT}/recaptcha/verify`, {
+    const verifyUrl = IS_LOCAL
+      ? `${API_ROOT}/api/recaptcha/verify`   // 로컬 테스트
+      : `${API_ROOT}/recaptcha/verify`;      // 배포
+
+    const res = await fetch(verifyUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),

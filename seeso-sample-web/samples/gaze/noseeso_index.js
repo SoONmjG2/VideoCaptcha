@@ -70,8 +70,8 @@ const clamp01 = v => Math.max(0, Math.min(1, v));
 const distN = (x1, y1, x2, y2) => Math.hypot(x1 - x2, y1 - y2);
 
 /* ===== 시선/클릭 반경 + 시간창 파라미터 (index.js와 정렬) ===== */
-const GAZE_R_N = 0.10;          // 기준 반경(정규화)
-let CLICK_R_MULT = 0.2;        // 클릭 허용 반경 배수
+const GAZE_R_N = 0.12;          // 기준 반경(정규화)
+let CLICK_R_MULT =  0.25;;        // 클릭 허용 반경 배수
 const rEffClick = () => GAZE_R_N * CLICK_R_MULT;
 
 let GAZE_WIN_BEFORE_MS = 200;   // 클릭보다 최대 이만큼 이르게 허용
@@ -130,14 +130,15 @@ function ensureCanvas() {
   if (!c) {
     c = document.createElement('canvas');
     c.id = 'output';
-    Object.assign(c.style, {
-      position: 'fixed',
-      inset: 0,
-      zIndex: 10001,
-      pointerEvents: 'auto'
-    });
     document.body.appendChild(c);
   }
+  Object.assign(c.style, {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 10001,
+    display: 'block',
+    pointerEvents: 'none'   // ✅ 기본은 클릭 막힘
+  });
   return c;
 }
 function getCanvas() { return ensureCanvas(); }
@@ -184,20 +185,46 @@ function renderOverlay() {
 /* ===== 클릭 이벤트 ===== */
 function addCanvasClickListener(video) {
   const canvas = getCanvas();
-  canvas.style.pointerEvents = 'auto';
+
+  function toggleCanvasPointer(e) {
+    const r = getVideoRect();
+    const inside =
+      e.clientX >= r.left && e.clientX <= r.right &&
+      e.clientY >= r.top  && e.clientY <= r.bottom;
+
+    // ✅ 비디오 위에서만 클릭 허용
+    canvas.style.pointerEvents = inside ? 'auto' : 'none';
+  }
+
+  window.addEventListener('mousemove', toggleCanvasPointer);
+
   canvas.addEventListener('contextmenu', e => e.preventDefault());
+
   canvas.addEventListener('mousedown', e => {
-    const { xn, yn } = winP2videoN(e.clientX, e.clientY); // ✅ 비디오 정규화 좌표
-    const tVideoMs = Math.round((video?.currentTime || 0) * 1000);
+    const r = getVideoRect();
+
+    // ✅ 비디오 밖이면 무시 (버튼 클릭 허용됨)
+    if (
+      e.clientX < r.left || e.clientX > r.right ||
+      e.clientY < r.top  || e.clientY > r.bottom
+    ) return;
+
+    e.stopPropagation(); // ✅ 버튼 이벤트와 충돌 방지
+
+    const { xn, yn } = winP2videoN(e.clientX, e.clientY);
+    const tVideoMs = Math.round(video.currentTime * 1000);
+
     if (e.button === 0) {
       clickDataArray.push({ t: tVideoMs, xn, yn });
-      renderOverlay();
     } else if (e.button === 2) {
       const idx = findNearestClickIndex(xn, yn, CLICK_TOGGLE_RADIUS_N);
-      if (idx !== -1) { clickDataArray.splice(idx, 1); renderOverlay(); }
+      if (idx !== -1) clickDataArray.splice(idx, 1);
     }
+    renderOverlay();
   });
 }
+
+
 function findNearestClickIndex(xn, yn, rN) {
   if (!clickDataArray.length) return -1;
   let bestIdx = -1, bestDist = rN;
