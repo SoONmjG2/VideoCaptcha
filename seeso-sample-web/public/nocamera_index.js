@@ -95,7 +95,7 @@ function updateBars() {
 // ===== 랜덤 dot 루프 (beep 전후 억제 포함) =====
 function startRandomDots() {
   if (success) return;
-  const delay = 700 + Math.random() * 800;
+  const delay = 1200 + Math.random() * 800;
 
   randomTimer = setTimeout(() => {
     if (success) return;
@@ -115,7 +115,7 @@ function startRandomDots() {
       setTimeout(() => {
         clearDot();
         startRandomDots();
-      }, 1000 + Math.random() * 400);
+      }, 1500 + Math.random() * 500);
     } else {
       startRandomDots();
     }
