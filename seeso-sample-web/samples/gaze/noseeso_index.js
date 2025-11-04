@@ -271,11 +271,14 @@ async function onSubmit() {
 /* ===== reCAPTCHA 검증 ===== */
 async function verifyRecaptcha() {
   try {
-    const siteKey = window.__RECAPTCHA_KEY; // ✅ HTML에 선언한 Site Key
+    const siteKey = window.__RECAPTCHA_KEY;
     const token = await grecaptcha.execute(siteKey, { action: "submit" });
 
-    // ✅ 공용 호출 방식 (API()가 알아서 /api 붙여줌)
-    const res = await fetch(API("/recaptcha/verify"), {
+    const url = IS_LOCAL
+      ? `${API_ORIGIN}/api/recaptcha/verify`   // 로컬일 때 /api 붙이기
+      : API("/recaptcha/verify");              // 배포는 기존 logic 사용
+
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),
