@@ -16,12 +16,12 @@ document.getElementById("loginForm").addEventListener("submit", (e) => {
   };
 
   // ✅ 관리자 계정: admin 또는 "12345678"
-  if ((username === "admin" && password === "12345678") || `${username}-${password}` === "admin-1234") {
+  if ((username === "admin" && password === "12345678")) {
     return go("/samples/gaze/index.html", "관리자 로그인 성공");
   }
 
   // ✅ 시연-성공: user 또는 "12345678"
-  if ((username === "user" && password === "12345678") || `${username}-${password}` === "user-1234") {
+  if ((username === "user" && password === "12345678")) {
     return go("/public/destination.html", "사용자 로그인 성공");
   }
 
