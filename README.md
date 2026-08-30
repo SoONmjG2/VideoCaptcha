@@ -3,11 +3,11 @@
 
 Human Pose와 실시간 시선 추적(Eye Tracking)을 결합하여 AI의 우회 공격을 차단하는 사용자 행동 기반의 영상 CAPTCHA 시스템입니다.
 
-## 프로젝트 개요\
-* **소속**: 덕성여자대학교 사이버보안학과 졸업작품
+## 프로젝트 개요
+* 덕성여자대학교 사이버보안학과 졸업작품
 * **개발 기간**: 2024년 11월 11일 ~ 2025년 12월 1일
 * **팀 구성**: 3인 
-* **배경**: 기존 텍스트 및 이미지 CAPTCHA는 AI의 발전으로 우회가 가능해져 보안성이 크게 저하되었습니다 (참고 논문: Breaking reCAPTCHAv2).
+* **배경**: 기존 텍스트 및 이미지 CAPTCHA는 AI의 발전으로 '사람과 컴퓨터(봇)를 구별한다'는 본연의 기능을 상실했습니다.(참고 논문: Breaking reCAPTCHAv2, Andreas Plesner et al., ETH Zurich / COMPSAC 2024)
 * **해결책**: AI 모델이 정확히 인식하지 못하는 지점(관절 신뢰도 임곗값 0.3 이하)을 문제 영역으로 설정하고, 사용자의 클릭 행동과 실시간 시선 추적 데이터를 함께 분석하여 사람과 AI 봇을 구분합니다.
 
 ## Tech Stack
@@ -49,7 +49,7 @@ for r in results:
     print(r.keys())
 
 print("Inference 완료! 'outputs/vis/' 폴더를 확인하세요.")
-'''
+```
 <img width="917" height="515" alt="image" src="https://github.com/user-attachments/assets/7fa7c541-b768-4b0e-b4f0-27c0b337b3f3" />
 *MMPose를 통한 영상 속 사람 관절 인식 결과 화면*
 
@@ -65,8 +65,15 @@ print("Inference 완료! 'outputs/vis/' 폴더를 확인하세요.")
 분석 결과, AI 미인식 구간이 명확하여 CAPTCHA 문제용으로 적합한 **50개의 영상 데이터셋을 선별**했습니다.[cite: 2]
 
 ## 주요 백엔드 구현 로직
-* **클릭 좌표 오차 거리 측정**: 사용자의 클릭 좌표(`c`)가 정답 좌표(`A`) 근처(`rN` 반경) 안에 있는지 유클리드 거리를 계산하여 확인합니다.[cite: 2]
+
+* **클릭 좌표 오차 거리 측정**: 사용자의 클릭 좌표(`c`)가 정답 좌표(`A`) 근처(`rN` 반경) 안에 있는지 유클리드 거리를 계산하여 확인합니다.
+
 ```javascript
 function nearAnswer(c, A, rN) {
   return (A||[]).some(a => distN(c.xn, c.yn, Number(a.xn), Number(a.yn)) <= rN);
 }
+```
+
+* **시선 패턴 검증 로직 구현**: 클릭 직후 일정 시간 구간에서 시선이 정답 영역 반경(`rN`) 내에 머문 시간을 분석하여 사용자 행동을 검증
+* **Google reCAPTCHA v3 API 연동**
+* **MongoDB CAPTCHA 영상 데이터 랜덤 추출 로직 구현**
