@@ -3,7 +3,8 @@
 
 Human Pose와 실시간 시선 추적(Eye Tracking)을 결합하여 AI의 우회 공격을 차단하는 사용자 행동 기반의 영상 CAPTCHA 시스템입니다.
 
-## 프로젝트 개요
+## 프로젝트 개요\
+* **소속**: 덕성여자대학교 사이버보안학과 졸업작품
 * **개발 기간**: 2024년 11월 11일 ~ 2025년 12월 1일
 * **팀 구성**: 3인 
 * **배경**: 기존 텍스트 및 이미지 CAPTCHA는 AI의 발전으로 우회가 가능해져 보안성이 크게 저하되었습니다 (참고 논문: Breaking reCAPTCHAv2).
@@ -48,6 +49,7 @@ for r in results:
     print(r.keys())
 
 print("Inference 완료! 'outputs/vis/' 폴더를 확인하세요.")
+'''
 <img width="917" height="515" alt="image" src="https://github.com/user-attachments/assets/7fa7c541-b768-4b0e-b4f0-27c0b337b3f3" />
 *MMPose를 통한 영상 속 사람 관절 인식 결과 화면*
 
