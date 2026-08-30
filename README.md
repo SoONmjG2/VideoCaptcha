@@ -16,15 +16,15 @@ Human Pose와 실시간 시선 추적(Eye Tracking)을 결합하여 AI의 우회
 * **API & Tools**: MMPose, Seeso API, Google ReCAPTCHA v3, Render
 
 ## 주요 기능
-* **문제 데이터셋 구축**: MMPose를 사용해 2,000개 오픈 소스 영상의 프레임별 관절 좌표와 신뢰도를 분석하고, AI 미인식 구간이 명확한 50개의 영상을 선별해 출제합니다.[cite: 2]
-* **시선 추적 기반 인증**: Seeso API로 웹캠 기반 사용자 시선 데이터를 실시간 추적 및 수집합니다.[cite: 2]
-* **복합 인증 체계**: 시선 시계열 분석, 클릭 이벤트 정답 판정, ReCaptcha v3 점수를 종합 평가하여 로그인 성공 여부를 판정합니다.[cite: 2]
-* **대체 인증 지원**: 카메라를 사용할 수 없는 환경을 위해 소리 기반 대체 인증을 제공합니다.[cite: 2]
-* **관리자 페이지**: 사용자 시선 데이터 좌표를 시각적으로 표시하는 페이지를 제공합니다.[cite: 2]
+* **문제 데이터셋 구축**: MMPose를 사용해 2,000개 오픈 소스 영상의 프레임별 관절 좌표와 신뢰도를 분석하고, AI 미인식 구간이 명확한 50개의 영상을 선별해 출제합니다.
+* **시선 추적 기반 인증**: Seeso API로 웹캠 기반 사용자 시선 데이터를 실시간 추적 및 수집합니다.
+* **복합 인증 체계**: 시선 시계열 분석, 클릭 이벤트 정답 판정, ReCaptcha v3 점수를 종합 평가하여 로그인 성공 여부를 판정합니다.
+* **대체 인증 지원**: 카메라를 사용할 수 없는 환경을 위해 소리 기반 대체 인증을 제공합니다.
+* **관리자 페이지**: 사용자 시선 데이터 좌표를 시각적으로 표시하는 페이지를 제공합니다.
 
 ## 데이터셋 검증 (MMPose 영상 분석)
 
-MMPose를 사용해 2,000개 오픈 소스 영상의 프레임별 관절 좌표와 신뢰도(Confidence)를 JSON으로 추출하고, 대표적 Human Pose Estimation 오픈소스인 MMPose로 영상을 분석했습니다.[cite: 2]
+MMPose를 사용해 2,000개 오픈 소스 영상의 프레임별 관절 좌표와 신뢰도(Confidence)를 JSON으로 추출하고, 대표적 Human Pose Estimation 오픈소스인 MMPose로 영상을 분석했습니다.
 
 > **Human Pose Estimation(관절 추정)이란?**
 > 이미지나 영상 속 사람의 주요 신체 관절 위치를 AI가 탐지하고 추적하는 컴퓨터 비전 기술
@@ -51,18 +51,16 @@ for r in results:
 print("Inference 완료! 'outputs/vis/' 폴더를 확인하세요.")
 ```
 <img width="917" height="515" alt="image" src="https://github.com/user-attachments/assets/7fa7c541-b768-4b0e-b4f0-27c0b337b3f3" />
-*MMPose를 통한 영상 속 사람 관절 인식 결과 화면*
-
 <br>
 
 ### 2. 관절 신뢰도(Confidence) 시각화 및 데이터 선별
-`THRESHOLD = 0.3` 기준으로 인식 성공(초록색) / 인식 실패(빨간색) 점을 영상 위에 매핑하여 시각화했습니다.[cite: 2]
+`THRESHOLD = 0.3` 기준으로 인식 성공(초록색) / 인식 실패(빨간색) 점을 영상 위에 매핑하여 시각화했습니다.
 
 <img width="897" height="570" alt="image" src="https://github.com/user-attachments/assets/3358093d-110c-4eac-a170-82b687f2462a" />
 
 
 **최종 선별 결과**
-분석 결과, AI 미인식 구간이 명확하여 CAPTCHA 문제용으로 적합한 **50개의 영상 데이터셋을 선별**했습니다.[cite: 2]
+분석 결과, AI 미인식 구간이 명확하여 CAPTCHA 문제용으로 적합한 **50개의 영상 데이터셋을 선별**했습니다.
 
 ## 주요 백엔드 구현 로직
 
@@ -77,3 +75,18 @@ function nearAnswer(c, A, rN) {
 * **시선 패턴 검증 로직 구현**: 클릭 직후 일정 시간 구간에서 시선이 정답 영역 반경(`rN`) 내에 머문 시간을 분석하여 사용자 행동을 검증
 * **Google reCAPTCHA v3 API 연동**
 * **MongoDB CAPTCHA 영상 데이터 랜덤 추출 로직 구현**
+
+## 🗄️ Database
+### 1. Firebase Storage (미디어 저장소)
+* **저장 대상**: CAPTCHA 문제용 MP4 영상 파일
+* **역할**: 클라이언트에게 영상 파일을 실시간으로 스트리밍하기 위한 원본 저장소 역할 수행
+
+### 2. MongoDB (데이터베이스 Schema)
+CAPTCHA 문제 및 정답 프레임 정보를 관리하기 위한 컬렉션 구조입니다[cite: 2].
+
+| Field | Type | Description |
+|---|---|---|
+| `_id` | ObjectId | Primary Key[cite: 2] |
+| `videoUrl` | String | Firebase Storage에 저장된 영상 스트리밍 URL |
+| `question` | String | 사용자에게 제시되는 CAPTCHA 미션 문구 |
+| `answer` | Array | 프레임별 관절 위치 정답 좌표 배열 데이터 (Keypoint Array) |
