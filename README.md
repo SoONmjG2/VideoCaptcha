@@ -1,4 +1,3 @@
-# VideoCaptcha
 # 🤖 로봇이 아닙니다 (영상 기반 CAPTCHA 시스템)
 
 Human Pose와 실시간 시선 추적을 결합하여 AI의 우회 공격을 차단하는 사용자 행동 기반의 영상 CAPTCHA 시스템입니다.
